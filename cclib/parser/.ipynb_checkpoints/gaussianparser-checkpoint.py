@@ -1059,7 +1059,11 @@ class Gaussian(logfileparser.Logfile):
                     self.scannames_scanned.append(name)
                     self.append_attribute('scannames', definition)
                 if 'frozen' in line.split()[4].lower(): #MY ADDITION
-                    self.frozen.append(name) 
+                    if any(s in name for s in ['X','Y','Z']):
+                        if name[1:] not in self.frozen:
+                            self.frozen.append(name[1:])
+                    else:
+                        self.frozen.append(definition) 
                 line = next(inputfile)
 
         # Extract unrelaxed PES scan data, which looks something like:
