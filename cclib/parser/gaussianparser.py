@@ -976,7 +976,7 @@ class Gaussian(logfileparser.Logfile):
             # (Issue #889) and similar properties are only reported for the
             # final step of an optimization.
             if not allconverged:
-                for reset_attr in ["etenergies", "etoscs", "etsyms", "etsecs", "etdips", "etveldips", "etmagdips"]:
+                for reset_attr in ["etenergies", "etoscs", "etsyms", "etsecs", "etspins", "etdips", "etveldips", "etmagdips"]:
                     if hasattr(self, reset_attr):
                         setattr(self, reset_attr, [])
 
@@ -1453,6 +1453,7 @@ class Gaussian(logfileparser.Logfile):
                 self.etoscs = []
                 self.etsyms = []
                 self.etsecs = []
+                self.etspins = []
 
             # Need to deal with lines like:
             # (restricted calc)
@@ -1466,6 +1467,9 @@ class Gaussian(logfileparser.Logfile):
             self.etenergies.append(utils.convertor(utils.float(groups[1]), "eV", "wavenumber"))
             self.etoscs.append(utils.float(line.split("f=")[-1].split()[0]))
             self.etsyms.append(groups[0].strip())
+            if '<S**2>' in line.split()[-1]:
+                etspinstring=line.split()[-1]
+                self.etspins.append(etspinstring.split('=')[1])
 
             line = next(inputfile)
 
