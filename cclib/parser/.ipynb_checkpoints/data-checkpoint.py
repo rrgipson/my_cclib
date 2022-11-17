@@ -44,6 +44,7 @@ class ccData:
         etmagdips -- magnetic transition dipoles of electronic transitions (array[2], ebohr)
         etrotats -- rotatory strengths of electronic transitions (array[1], ??)
         etsecs -- singly-excited configurations for electronic transitions (list of lists)
+        etspins -- <S**2> value for electronic transitions for evaluating spin contamination (array[1])
         etsyms -- symmetries of electronic transitions (list of string)
         freeenergy -- sum of electronic and thermal free energies (float, hartree/particle)
         frozen -- Atoms, Bonds, Angles, or Dihedrals frozen in opt, freq, or sp (Gaussian Only) MY ADDITIONS
@@ -128,6 +129,8 @@ class ccData:
        "etmagdips":        Attribute(numpy.ndarray,    'magnetic transition dipoles', 'transitions'),
        "etrotats":         Attribute(numpy.ndarray,    'rotatory strength',           'transitions'),
        "etsecs":           Attribute(list,             'one excited config',          'transitions'),
+        ## etspins is my addition
+        "etspins":           Attribute(numpy.ndarray,   'TBD',                         'transitions'),
        "etsyms":           Attribute(list,             'symmetry',                    'transitions'),
        "freeenergy":       Attribute(float,            'free energy',                 'properties:energy'),
        ## I added frozen as a parameter
