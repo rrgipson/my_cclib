@@ -1701,7 +1701,7 @@ class Gaussian(logfileparser.Logfile):
         # Molecular orbital coefficients (mocoeffs).
         # Essentially only produced for SCF calculations.
         # This is also the place where aonames and atombasis are parsed.
-        if line[5:35] == "Molecular Orbital Coefficients" or line[5:41] == "Alpha Molecular Orbital Coefficients" or line[5:40] == "Beta Molecular Orbital Coefficients":
+        if line[5:35] == "Molecular Orbital Coefficients" or line[5:41] == "Alpha Molecular Orbital Coefficients" or line[5:40] == "Beta Molecular Orbital Coefficients" or line[5:50] == "Alpha Natural Transition Orbital Coefficients" or line[5:49] == "Beta Natural Transition Orbital Coefficients":
 
             # If counterpoise fragment, return without parsing orbital info
             if self.counterpoise != 0:
@@ -1710,7 +1710,7 @@ class Gaussian(logfileparser.Logfile):
             if self.oniom:
                 return
 
-            if line[5:40] == "Beta Molecular Orbital Coefficients":
+            if line[5:40] == "Beta Molecular Orbital Coefficients" or line[5:49] == "Beta Natural Transition Orbital Coefficients":
                 beta = True
                 if self.popregular:
                     return
