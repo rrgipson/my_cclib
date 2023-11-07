@@ -198,7 +198,13 @@ class Gaussian(logfileparser.Logfile):
                 "package_version"
             ] = f"{self.YEAR_SUFFIXES_TO_YEARS[year_suffix]}+{revision}"
             self.metadata["platform"] = platform
-
+        
+        if line[0] == '#':
+            self.inputline = []
+            while line[0] != '-':
+                self.inputline = numpy.concatenate((self.inputline, line.split()))
+                line = inputfile.next()
+            
         if line.strip().startswith("Link1:  Proceeding to internal job step number"):
             self.new_internal_job()
 

@@ -58,6 +58,7 @@ class ccData:
         grads -- current values of forces (gradients) in geometry optimization (array[3])
         hessian -- elements of the force constant matrix (array[1])
         homos -- molecular orbital indices of HOMO(s) (array[1])
+        inputline -- the parameters used in the input file (the # line) (list) MY ADDITIONS
         metadata -- various metadata about the package and computation (dict)
         mocoeffs -- molecular orbital coefficients (list of arrays[2])
         moenergies -- molecular orbital energies (list of arrays[1], eV)
@@ -145,6 +146,8 @@ class ccData:
        "grads":            Attribute(numpy.ndarray,    'TBD',                         'N/A'),
        "hessian":          Attribute(numpy.ndarray,    'hessian matrix',              'vibrations'),
        "homos":            Attribute(numpy.ndarray,    'homos',                       'properties:orbitals'),
+        #inputline is my addition to parse input line
+        "inputline":           Attribute(list,             'TBD',                         'N/A'),
        "metadata":         Attribute(dict,             'TBD',                         'N/A'),
        "mocoeffs":         Attribute(list,             'coeffs',                      'properties:orbitals'),
        "moenergies":       Attribute(list,             'energies',                    'properties:orbitals'),
