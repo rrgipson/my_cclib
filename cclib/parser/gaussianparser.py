@@ -204,6 +204,7 @@ class Gaussian(logfileparser.Logfile):
             while line[0] != '-':
                 self.inputline = numpy.concatenate((self.inputline, line.split()))
                 line = inputfile.next()
+            print('found input line')
             
         if line.strip().startswith("Link1:  Proceeding to internal job step number"):
             self.new_internal_job()
