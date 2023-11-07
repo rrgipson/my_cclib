@@ -199,9 +199,9 @@ class Gaussian(logfileparser.Logfile):
             ] = f"{self.YEAR_SUFFIXES_TO_YEARS[year_suffix]}+{revision}"
             self.metadata["platform"] = platform
         
-        if '#' in line:
+        if ' # ' in line:
             self.inputline = []
-            while line.split()[0] != '-':
+            while '-' not in line:
                 self.inputline = numpy.concatenate((self.inputline, line.split()))
                 line = inputfile.next()
             print('found input line')
