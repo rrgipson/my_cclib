@@ -1,48 +1,47 @@
-# -*- coding: utf-8 -*-
+# Copyright (c) 2025-2026, the cclib development team
 #
-# This file is part of cclib (http://cclib.github.io), a library for parsing
-# and interpreting the results of computational chemistry packages.
-#
-# Copyright (C) 2017, the cclib development team
-#
-# The library is free software, distributed under the terms of
-# the GNU Lesser General Public version 2.1 or later. You should have
-# received a copy of the license along with cclib. You can also access
-# the full license online at http://www.gnu.org/copyleft/lgpl.html.
+# This file is part of cclib (http://cclib.github.io) and is distributed under
+# the terms of the BSD 3-Clause License.
 
 """Analyses related to orbitals."""
 
 import logging
 
-import numpy
-
 from cclib.method.calculationmethod import Method
+from cclib.progress import Progress
+
+import numpy
 
 
 class Orbitals(Method):
     """A class for orbital related methods."""
 
-    def __init__(self, data, progress=None, \
-                 loglevel=logging.INFO, logname="Log"):
+    def __init__(
+        self,
+        data,
+        progress: Progress | None = None,
+        loglevel: int = logging.INFO,
+        logname: str = "Log",
+    ) -> None:
         super().__init__(data, progress, loglevel, logname)
-        self.required_attrs = ('mocoeffs','moenergies','homos')
+
+        self.required_attrs = ("mocoeffs", "moenergies", "homos")
         self.fragresults = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of the object."""
         return "Orbitals"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a representation of the object."""
         return "Orbitals"
 
-    def closed_shell(self):
+    def closed_shell(self, precision: float = 10e-6) -> bool:
         """Return Boolean indicating if system is closed shell."""
 
         # If there are beta orbitals, we can assume the system is closed
         # shell if the orbital energies are identical within numerical accuracy.
         if len(self.data.mocoeffs) == 2:
-            precision = 10e-6
             return numpy.allclose(*self.data.moenergies, atol=precision)
 
         # Restricted open shell will have one set of MOs but two HOMO indices,

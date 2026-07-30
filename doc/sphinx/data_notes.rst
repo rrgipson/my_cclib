@@ -1,5 +1,5 @@
 .. index::
-    module: data_notes
+    pair: module; data_notes
 
 Parsed data notes
 =================
@@ -42,7 +42,7 @@ Some examples:
 * ``aooverlaps[0,3]`` is the overlap between the 1st and 4th basis function
 * ``aooverlaps[2,:]`` is a 1-dimensional array containing the overlap between every basis function and the 3rd basis function
 
-**ADF**: not present by default, printed when `PRINT Smat` is in the input; do not mistake with `fooverlaps`_.
+**ADF**: not present by default, printed when ``PRINT Smat`` is in the input; do not mistake with `fooverlaps`_.
 
 **DALTON**: no option to print as of version 2013.
 
@@ -65,13 +65,35 @@ atomcharges
 
 The attribute ``atomcharges`` contains the atomic partial charges as taken from the output file. Since these charges are arbitrary and depend on the details of a population analysis, this attribute is dictionary containing any number of various atomic charges. The keys in this dictionary are strings naming the population analysis, and the values are arrays of rank 1 and contain the actual charges.
 
-Currently, cclib parses Mulliken, Löwdin, NPA and CHELPG charges, whose respective dictionary keys are ``mulliken``, ``lowdin``, ``natural`` and ``chelpg``.
+Currently, cclib parses several different charge types depending on the program:
+
+    ============ ==============================
+    charge type  name of key in ``atomcharges``
+    ============ ==============================
+    Mulliken     ``mulliken``
+    Löwdin       ``lowdin``
+    NPA          ``natural``
+    `APT`_       ``apt``
+    `CHELPG`_    ``chelpg``
+    `Hirshfeld`_ ``hirshfeld``
+    `CM5`_       ``cm5``
+    `ESP`_       ``esp``
+    `RESP`_      ``resp``
+    ============ ==============================
 
 In practice, these may differ somewhat from the values cclib calculates in the various `calculation methods`_.
+
+**Gaussian**: additional sections are present where the partial charge on each hydrogen is added into the heavy atom it is connected to ("charges with hydrogens summed into heavy atoms").  For each charge schema (such as ``mulliken``), a corresponding key with ``_sum`` appended will be present (``mulliken_sum``) with these charges, and hydrogens will be present but set to zero.
 
 **Molpro**: use the ``pop`` command (see https://www.molpro.net/manual/doku.php?id=properties_and_expectation_values&s[]=population&s[]=analysis#calling_the_population_analysis_program_pop).
 
 .. _`calculation methods`: methods.html
+.. _`APT`: https://doi.org/10.1016/j.theochem.2010.06.011
+.. _`CHELPG`: https://doi.org/10.1002/jcc.540110311
+.. _`Hirshfeld`: https://doi.org/10.1007/BF01113058
+.. _`CM5`: https://doi.org/10.1021/ct200866d
+.. _`ESP`: https://doi.org/10.1002/jcc.540050204
+.. _`RESP`: https://doi.org/10.1021/j100142a004
 
 atomcoords
 ----------
@@ -290,14 +312,14 @@ If the optimisation has finished successfully, the values in the last row should
 
 grads
 -----
-The attribute ``grads`` contains the forces on the atoms, that is, the negative gradient of the energy with respect to atomic coordinates in atomic units (Hartree / Bohr). ``grads`` is an array of rank 3, with dimensions `n x m x 3` where `n` is 1 for a single point calculation and `>=1` for a geometry optimisation, `m` is the number of atoms and the last dimension contains the x, y and z components of the gradient. The orientation of ``grads`` corresponds to that of `atomcoords`_.
+The attribute ``grads`` contains the forces on the atoms, that is, the negative gradient of the energy with respect to atomic coordinates in atomic units (Hartree / Bohr). ``grads`` is an array of rank 3, with dimensions ``[n, m, 3]`` where ``n`` is 1 for a single point calculation and ``>=1`` for a geometry optimisation, ``m`` is the number of atoms and the last dimension contains the x, y and z components of the gradient. The orientation of ``grads`` corresponds to that of `atomcoords`_.
 
 **Gaussian**: In calculations that include point-group symmetry, ``grads`` is converted to standard orientation to match the orientation of ``atomcoords`` and other quantities. Because of this, the ``grads`` group will differ from that printed in the output file by Gaussian (which is always in the input orientation). Calculations without symmetry (that is, with the ``Symmetry=None`` keyword) yield everything in the input orientation and in those cases ``grads`` should match exactly what is printed in the output file.
 
 hessian
 -------
 
-An array of rank 2 that contains the elements of the `hessian <https://en.wikipedia.org/wiki/Hessian_matrix>`_ or force constant matrix. The full symmetric ``3N x 3N`` matrix is stored.
+An array of rank 2 that contains the elements of the `hessian <https://en.wikipedia.org/wiki/Hessian_matrix>`_ or force constant matrix. The full symmetric ``[3N, 3N]`` matrix is stored.
 
 .. index::
     single: molecular orbitals; homos (attribute)
@@ -309,8 +331,8 @@ A 1D array that holds the indexes of the highest occupied molecular orbitals (HO
 
 .. code-block:: python
 
-  >> data = cclib.io.ccread('water_mp2')
-  >> last_occupied_energy = data.moenergies[0][data.homos[0]]
+    data = cclib.io.ccread('water_mp2')
+    last_occupied_energy = data.moenergies[0][data.homos[0]]
 
 >> **Note:** All indexes in cclib start from zero, as per Python conventions. This applies to the contents of ``homos`` as well, which means ``homos[0]`` refers to the *index* of the HOMO when referencing other attributes and not the number of occupied orbitals.
 
@@ -323,14 +345,15 @@ metadata
 A dictionary containing metadata_ (data about data) for the calculation. Currently, it can contain the following possible attributes, not all of which are implemented for each parser.
 
 * ``basis_set``: A string with the name of the basis set, if it is printed anywhere as a standard name.
+* ``comments``: A list of strings of the user-provided input file comment sections. There is one string per discovered job in the output.
 * ``coord_type``: For the ``coords`` field, a string for the representation of stored coordinates. Currently, it is one of ``xyz``, ``int``/``internal``, or ``gzmat``.
 * ``coords``: A list of lists with shape ``[natoms, 4]`` which contains the input coordinates (those found in the input file). The first column is the atomic symbol as a string, and the next three columns are floats. This is useful as many programs reorient coordinates for symmetry reasons.
-* ``cpu_time``: A list of datetime.timedeltas containing the CPU time of each calculation in the output.  
+* ``cpu_time``: A list of datetime.timedeltas containing the CPU time of each calculation in the output.
 * ``functional``: A string with the name of the density functional used.
 * ``info``: A list of strings, each of which is an information or log message produced during a calculation.
 * ``input_file_contents``: A string containing the entire input file, if it is echoed back during the calculation.
 * ``input_file_name``: A string containing the name of the input file, with file extension. It may not contain the entire path to the file.
-* ``keywords``: A list of strings corresponding to the keywords used in the input file, in the loose format used by ORCA.
+* ``keywords``: A list of strings corresponding to the keywords used in the input file, in the loose format used by ORCA.  For Gaussian there is one string per discovered job in the output.
 * ``methods``: A list of strings containing each method used in order. Currently, the list may contain ``HF``, ``DFT``, ``LMP2``/``DF-MP2``/``MP2``, ``MP3``, ``MP4``, ``CCSD``, and/or ``CCSD(T)``/``CCSD-T``.
 * ``package``: A string with the name of the quantum chemistry program used.
 * ``package_version``: A string representation of the package version. It is formatted to allow comparison using relational operators.
@@ -338,10 +361,10 @@ A dictionary containing metadata_ (data about data) for the calculation. Current
 * ``symmetry_used``: A string representing the point group used by the program for the calculation. This may be different from ``symmetry_detected`` if the full point group is non-abelian and the program can only take advantage of abelian groups. For example, when performing a calculation on benzene with symmetry turned on, ``symmetry_detected`` may be ``d6h``, but ``symmetry_used`` is most likely ``d2h``, since D2h is the largest abelian subgroup of D6h.
 * ``success``: A boolean for whether or not the calculation completed properly.
 * ``unrestricted``: A boolean for whether or not the calculation was performed with a unrestricted wavefunction.
-* ``wall_time``: A list of datetime.timedeltas containing the wall time of each calculation in the output.  
+* ``wall_time``: A list of datetime.timedeltas containing the wall time of each calculation in the output.
 * ``warnings``: A list of strings, each of which is a warning produced during a calculation.
 
-The implementation and coverage of metadata is currently inconsistent. In the future, metadata may receive its own page similar to `extracted data`_.
+The implementation and coverage of metadata is currently inconsistent. In the future, metadata may receive its own page similar to :doc:`extracted data <data>`.
 
 .. _metadata: https://en.wikipedia.org/wiki/Metadata
 
@@ -417,15 +440,15 @@ The symmetry labels are normalised and cclib reports standard symmetry names:
     sigma.g Sigma.g                     SGG
     ======= ======= ======= ==========  ==================          ======
 
-* ADF - the full list can be found `here http://www.scm.com/Doc/Doc2005.01/ADF/ADFUsersGuide/page339.html`_.
+* ADF - the full list can be found `here <http://www.scm.com/Doc/Doc2005.01/ADF/ADFUsersGuide/page339.html>`_.
 * GAMESS-UK - to get the list, ``grep "data yr" input.m`` if you have access to the source. Note that for E, it's split into "e1+" and "e1-" for instance.
 * Jaguar - to get the list, look at the examples in ``schrodinger/jaguar-whatever/samples`` if you have access to Jaguar. Note that for E, it's written as E1pp/Ap, for instance.
-* NWChem - if molecular symmetry is turned off or set to C1, symmetry adaption for orbitals is also deactivated, and can be explicitly turned on with `adapt on` in the SCF block
+* NWChem - if molecular symmetry is turned off or set to C1, symmetry adaption for orbitals is also deactivated, and can be explicitly turned on with ``adapt on`` in the SCF block
 
 Developers:
 
 * The tests for these functions live in ``test/parser/testspecficparser.py``.
-* The character tables `here <http://symmetry.jacobs-university.de/>`_ may be useful in determining the correspondence between the labels used by the comp chem package and the commonly-used symbols.
+* `These <http://symmetry.jacobs-university.de/>`_ character tables may be useful in determining the correspondence between the labels used by the comp chem package and the commonly-used symbols.
 
 .. index::
     single: energy; mpenergies (attribute)
@@ -455,7 +478,7 @@ The attribute ``mult`` is an integer and represents the spin multiplicity of the
 natom
 -----
 
-``Natom`` is an integer, the number of atoms treated in the calculation.
+An integer representing the number of atoms treated in the calculation.
 
 .. index::
     single: basis sets; nbasis (attribute)
@@ -484,7 +507,72 @@ Commands to get information on all orbitals:
 nmrtensors
 ----------
 
-A dictionary where the keys zero-index the atomic center for which the chemical shielding tensor is calculated, and the values are themselves dictionaries containing the keys ``total``, ``paramagnetic``, and ``diamagnetic``. These correspond to the total chemical shielding tensor and its separation into paramagnetic and diamagnetic components, where :math:`\sigma_{K}^{\textrm{tot}} = \sigma_{K}^{\textrm{para}} + \sigma_{K}^{\textrm{dia}}` for a nucleus :math:`K`.  Each tensor is represented as a 3-by-3 NumPy array. If no breakdown for paramagnetic and diamagnetic contributions to the chemical shielding is available, then only the ``total`` key will be present.
+A dictionary where the keys zero-index the atomic center for which the chemical shielding tensor is calculated, and the values are themselves dictionaries containing the keys ``total`` and ``isotropic``, and optionally ``paramagnetic``, and ``diamagnetic``. ``total``, ``paramagnetic`` and ``diamagnetic`` correspond to the total chemical shielding tensor and its separation into paramagnetic and diamagnetic components, where :math:`\sigma_{K}^{\textrm{tot}} = \sigma_{K}^{\textrm{para}} + \sigma_{K}^{\textrm{dia}}` for a nucleus :math:`K`.  Each tensor is represented as a 3-by-3 NumPy array. If no breakdown for paramagnetic and diamagnetic contributions to the chemical shielding is available, then ``paramagnetic`` and ``diamagnetic`` will be absent. ``isotropic`` contains the total isotropic shielding value for the atom, which corresponds to the mean of the eigenvalues of the ``total`` tensor. All values are in ppm.
+
+.. code-block:: python
+
+    {
+        # Atomic index.
+        0: {
+            'diamagnetic': array([[267.113,  -0.561,   0.   ],
+                                  [ -0.693, 260.076,   0.   ],
+                                  [  0.   ,   0.   , 244.893]]
+            ),
+            'isotropic': 114.114,
+            'paramagnetic': array([[-217.434,    5.104,    0.   ],
+                                   [   7.253, -179.952,    0.   ],
+                                   [   0.   ,   -0.   ,  -32.354]]
+            ),
+            'total': array([[ 49.679,   4.542,   0.   ],
+                            [  6.56 ,  80.124,   0.   ],
+                            [  0.   ,  -0.   , 212.538]]
+            )
+        }
+        # ...
+    }
+
+nmrcouplingtensors
+------------------
+
+A dictionary of spin-spin coupling tensors. The keys of ``nmrcouplingtensors`` are each a pair of atomic indices, indicating the atoms between which the coupling is taking place, and the values are themselves dictionaries containing pairs of atomic isotopes as keys, where the ordering of the isotopes matches that of the atomic indices. The values of the isotope dictionaries are a third layer of dictionaries, where the keys represent different contributions to the coupling tensor, and the values are the tensors themselves as a 3-by-3 NumPy array. The available tensor types depends on what is available in the calculation, but may include ``fermi``, ``spin-dipolar-fermi``, ``diamagnetic``, ``paramagnetic``, and ``spin-dipolar``. The ``total`` spin tensor is always available. Additionally, the ``isotropic`` key contains the total isotropic coupling value for the atom pair. All values are in Hz, and include the atomic g-factors (the J matrix).
+
+.. code-block:: python
+
+    {
+        # Atomic pair.
+        (1,0): {
+            # Istopes, here two C13 atoms.
+            (13,13): {
+                'diamagnetic': array([[ 0.4902, -0.1273, -0.    ],
+                                    [-0.1273, -0.2556,  0.    ],
+                                    [ 0.    , -0.    , -0.1391]]
+                ),
+                'fermi': array([[7.44, 0.  , 0.  ],
+                                [0.  , 7.44, 0.  ],
+                                [0.  , 0.  , 7.44]]
+                ),
+                'isotropic': 9.485,
+                'paramagnetic': array([[ 1.188 , -0.2805,  0.    ],
+                                    [-0.2804, -0.5528,  0.    ],
+                                    [-0.    ,  0.    , -0.0408]]
+                ),
+                'spin-dipolar': array([[ 0.7239,  0.0401,  0.    ],
+                                    [ 0.0398,  1.1012, -0.    ],
+                                    [-0.    ,  0.    ,  3.6195]]
+                ),
+                'spin-dipolar-fermi': array([[ 1.9809,  0.0177,  0.    ],
+                                            [ 0.0177,  2.2309, -0.    ],
+                                            [ 0.    , -0.    , -4.2119]]
+                ),
+                'total': array([[11.8229, -0.3499,  0.    ],
+                                [-0.3501,  9.9637, -0.    ],
+                                [-0.    ,  0.    ,  6.6676]]
+                )
+            }
+        }
+        # ...
+    }
+
 
 optdone
 -------
@@ -511,15 +599,27 @@ or by providing the corresponding argument to ``ccopen``,
     parser = ccopen("filename", optdone_as_list=True) # could also do future=True instead of optdone_as_list
     data = parser.parse()
 
+optstatus
+---------
+
+A list of integers representing the status of each step in an optimisation. The possible optimisation statuses are defined in bit value notation to allow for coding for multiple states and are given by:
+
+    * ``OPT_UNKNOWN = 0b000 = 0`` is the default and means optimisation is in progress.
+    * ``OPT_NEW = 0b001 = 1`` is set for every new optimisation (e.g. PES, IRCs, etc.)
+    * ``OPT_DONE = 0b010 = 2`` is set for the last step of an optimisation that converged.
+    * ``OPT_UNCONVERGED = 0b100 = 4`` is set for every unconverged step (e.g. should be mutually exclusive with ``OPT_DONE``)
+
+So, to robustly check if step ``i`` has converged, one should check ``data.optstatus[i] & OPT_DONE`` instead of ``data.optstatus[i] == OPT_DONE``.
+
 scancoords
 ----------
 
-An array containing the geometries for each step of shape `(number of scan steps, number of atoms, 3)`. In the case of an unrelaxed scan this is equivalent to `atomcoords`, however this is not the case for a relaxed scan as a geometry optimization is performed at each scan step.
+An array containing the geometries for each step of shape ``[number of scan steps, number of atoms, 3]``. In the case of an unrelaxed scan this is equivalent to `atomcoords`_, however this is not the case for a relaxed scan as a geometry optimization is performed at each scan step.
 
 scanenergies
 ------------
 
-A list containing the energies at each point of the scan. As with `scancoords`, `scanenergies` is only equivalent to `[scf,mp,cc]energies` in the case of an unrelaxed scan of the scf, mp, and/or cc potential energy surface.
+A list containing the energies at each point of the scan. As with `scancoords`_, ``scanenergies`` is only equivalent to ``{scf,mp,cc}energies`` in the case of an unrelaxed scan of the SCF, MP, and/or CC potential energy surface.
 
 scannames
 ---------
@@ -529,7 +629,7 @@ A list containing the names of each parameter scanned.
 scanparm
 --------
 
-A list of lists where each list contains the values scanned for each parameter in `scannames`. 
+A list of lists where each list contains the values scanned for each parameter in `scannames`_.
 
 scfenergies
 -----------
@@ -582,7 +682,7 @@ scfvalues
 
 The attribute ``scfvalues`` is a list of arrays of dimension ``n x m`` (one element for each step in a geometry optimisation), where ``n`` is the number of SCF cycles required for convergence and ``m`` is the number of SCF convergence target criteria. For some packages, you may need to include a directive to make sure that SCF convergence information is printed to the log file
 
-**Gaussian**: requires the `route section`_ to start with #P
+**Gaussian**: requires the `route section`_ to start with ``#P``
 
 .. _`route section`: https://gaussian.com/route/
 
@@ -591,15 +691,14 @@ The attribute ``scfvalues`` is a list of arrays of dimension ``n x m`` (one elem
 vibdisps
 --------
 
-The attribute ``vibdisps`` stores the Cartesian displacement vectors from the output of a vibrational frequency calculation. It is a rank 3 array having dimensions ``M x N x 3``, where ``M`` is the number of normal modes and ``N`` is the number of atoms. ``M`` is typically ``3N-6`` (``3N-5`` for linear molecules).
+The attribute ``vibdisps`` stores the Cartesian displacement vectors from the output of a vibrational frequency calculation. It is a rank 3 array having dimensions ``[M, N, 3]``, where ``M`` is the number of normal modes and ``N`` is the number of atoms. ``M`` is typically ``3N-6`` (``3N-5`` for linear molecules).
 
 vibfconsts
 ----------
 
-The attribute ``vibrmasses`` stores the force constants in :math:`\mathrm{Å^4/Da}` from vibrational frequency calculation. It is a rank 1 array having dimension ``M``, where ``M`` is the number of normal modes.
+The attribute ``vibfconsts`` stores the force constants in :math:`\mathrm{mDyne/Å}` from vibrational frequency calculations. It is a rank 1 array having dimension ``M``, where ``M`` is the number of normal modes.
 
 vibrmasses
 ----------
 
 The attribute ``vibrmasses`` stores the reduced masses in Daltons (Da) from vibrational frequency calculation. It is a rank 1 array having dimension ``M``, where ``M`` is the number of normal modes.
-

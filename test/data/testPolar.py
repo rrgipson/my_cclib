@@ -1,31 +1,30 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2017, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Test logfiles with (non)linear response output in cclib"""
 
-import os
-import unittest
+from typing import TYPE_CHECKING
 
 import numpy
-
 from skip import skipForParser
 
-__filedir__ = os.path.realpath(os.path.dirname(__file__))
+
+if TYPE_CHECKING:
+    from cclib.parser.data import ccData
 
 
-class GenericPolarTest(unittest.TestCase):
+class GenericPolarTest:
     """Generic static polarizability unittest"""
 
-    @skipForParser('Molcas','The parser is still being developed so we skip this test')
-    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
-    def testshape(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    def testshape(self, data: "ccData") -> None:
         """Is the dimension of the polarizability tensor 3 x 3?"""
-        self.assertEqual(len(self.data.polarizabilities), 1)
-        self.assertEqual(self.data.polarizabilities[0].shape, (3, 3))
+        assert len(data.polarizabilities) == 1
+        assert data.polarizabilities[0].shape == (3, 3)
 
 
 class ReferencePolarTest(GenericPolarTest):
@@ -37,33 +36,26 @@ class ReferencePolarTest(GenericPolarTest):
     isotropic_delta = 0.01
     principal_components_delta = 0.01
 
-    @skipForParser('Molcas','The parser is still being developed so we skip this test')
-    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
-    def testisotropic(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    def testisotropic(self, data: "ccData") -> None:
         """Is the isotropic polarizability (average of the diagonal elements)
         +/- 0.01 from a reference?
         """
-        isotropic = numpy.average(numpy.diag(self.data.polarizabilities[0]))
-        self.assertAlmostEqual(isotropic, self.isotropic, delta=self.isotropic_delta)
+        isotropic = numpy.average(numpy.diag(data.polarizabilities[0]))
+        assert abs(isotropic - self.isotropic) < self.isotropic_delta
 
-    @skipForParser('Molcas','The parser is still being developed so we skip this test')
-    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
-    def testprincomponents(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    def testprincomponents(self, data: "ccData") -> None:
         """Are each of the principal components (eigenvalues) of the
         polarizability tensor +/- 0.01 from a reference?
         """
-        principal_components = numpy.linalg.eigvalsh(self.data.polarizabilities[0])
+        principal_components = numpy.linalg.eigvalsh(data.polarizabilities[0])
         for c in range(3):
-            self.assertAlmostEqual(principal_components[c],
-                                   self.principal_components[c],
-                                   delta=self.principal_components_delta)
-
-
-if __name__=="__main__":
-
-    import sys
-    sys.path.insert(1, os.path.join(__filedir__, ".."))
-
-    from test_data import DataSuite
-    suite = DataSuite(['Polar'])
-    suite.testall()
+            assert (
+                abs(principal_components[c] - self.principal_components[c])
+                < self.principal_components_delta
+            )

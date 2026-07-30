@@ -1,55 +1,51 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2020, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Test the Hirshfeld Method in cclib"""
 
-import sys
 import os
-import logging
-import unittest
+
+from cclib.io import ccread
+from cclib.method import Hirshfeld, volume
+from cclib.method.calculationmethod import MissingAttributeError
+from cclib.parser import Psi4
 
 import numpy
-
-from cclib.method import Hirshfeld, volume
-from cclib.parser import Psi4
-from cclib.io import ccread
-from cclib.method.calculationmethod import MissingAttributeError
-
+import pytest
 from numpy.testing import assert_allclose
 
 from ..test_data import getdatafile
 
 
-class HirshfeldTest(unittest.TestCase):
+class HirshfeldTest:
     """Hirshfeld method tests."""
 
-    def setUp(self):
-        super(HirshfeldTest, self).setUp()
+    def setup_method(self) -> None:
         self.parse()
 
-    def parse(self):
+    def parse(self) -> None:
         self.data, self.logfile = getdatafile(Psi4, "basicPsi4-1.2.1", ["water_mp2.out"])
         self.volume = volume.Volume((-4, -4, -4), (4, 4, 4), (0.2, 0.2, 0.2))
 
-    def testmissingrequiredattributes(self):
+    def testmissingrequiredattributes(self) -> None:
         """Is an error raised when required attributes are missing?"""
         for missing_attribute in Hirshfeld.required_attrs:
             self.parse()
             delattr(self.data, missing_attribute)
-            with self.assertRaises(MissingAttributeError):
-                trialBader = Hirshfeld(
+            with pytest.raises(MissingAttributeError):
+                trialBader = Hirshfeld(  # noqa: F841
                     self.data, self.volume, os.path.dirname(os.path.realpath(__file__))
                 )
 
-    def test_proatom_read(self):
+    def test_proatom_read(self) -> None:
         """Are proatom densities imported correctly?"""
 
         self.parse()
-        self.analysis = Hirshfeld(self.data, self.volume, os.path.dirname(os.path.realpath(__file__)))
+        self.analysis = Hirshfeld(
+            self.data, self.volume, os.path.dirname(os.path.realpath(__file__))
+        )
 
         refH_den = [
             2.66407645e-01,
@@ -58,7 +54,7 @@ class HirshfeldTest(unittest.TestCase):
             2.66407612e-01,
             2.66407322e-01,
         ]  # Hydrogen first five densities
-        refH_r = [
+        refH_r = [  # noqa: F841
             1.17745807e-07,
             4.05209491e-06,
             3.21078677e-05,
@@ -72,7 +68,7 @@ class HirshfeldTest(unittest.TestCase):
             2.98258487e02,
             2.98258290e02,
         ]  # Oxygen first five densities
-        refO_r = [
+        refO_r = [  # noqa: F841
             5.70916728e-09,
             1.97130512e-07,
             1.56506399e-06,
@@ -84,13 +80,13 @@ class HirshfeldTest(unittest.TestCase):
         assert_allclose(self.analysis.proatom_density[1][0:5], refH_den, rtol=1e-3)
         assert_allclose(self.analysis.proatom_density[2][0:5], refH_den, rtol=1e-3)
 
-    def test_water_charges(self):
-        """ Are Hirshfeld charges calculated correctly for water?
-        
-            Note. Table 1 in doi:10.1007/BF01113058 reports Hirshfeld charge for Hydrogen atom as
-                  0.11 when STO-3G basis set was used and
-                  0.18 when 6-311G** basis set was used.
-                  Here, Psi4 calculation was done using STO-3G.
+    def test_water_charges(self) -> None:
+        """Are Hirshfeld charges calculated correctly for water?
+
+        Note. Table 1 in doi:10.1007/BF01113058 reports Hirshfeld charge for Hydrogen atom as
+              0.11 when STO-3G basis set was used and
+              0.18 when 6-311G** basis set was used.
+              Here, Psi4 calculation was done using STO-3G.
         """
 
         self.parse()
@@ -103,11 +99,10 @@ class HirshfeldTest(unittest.TestCase):
         analysis.calculate()
 
         # Check assigned charges
-        assert_allclose(analysis.fragcharges, [-0.29084274,  0.14357639,  0.14357639], atol=0.1)
+        assert_allclose(analysis.fragcharges, [-0.29084274, 0.14357639, 0.14357639], atol=0.1)
 
-    def test_chgsum_h2(self):
-        """ Are Hirshfeld charges for hydrogen atoms in nonpolar H2 small as expected?
-        """
+    def test_chgsum_h2(self) -> None:
+        """Are Hirshfeld charges for hydrogen atoms in nonpolar H2 small as expected?"""
 
         h2path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "h2.out")
         data = ccread(h2path)
@@ -115,16 +110,16 @@ class HirshfeldTest(unittest.TestCase):
         analysis = Hirshfeld(data, vol, os.path.dirname(os.path.realpath(__file__)))
         analysis.calculate()
 
-        self.assertAlmostEqual(numpy.sum(analysis.fragcharges), 0, delta=1e-2)
-        self.assertAlmostEqual(analysis.fragcharges[0], analysis.fragcharges[1], delta=1e-6)
+        assert abs(numpy.sum(analysis.fragcharges) - 0) < 1e-2
+        assert abs(analysis.fragcharges[0] - analysis.fragcharges[1]) < 1e-6
 
-    def test_chgsum_co(self):
-        """ Are Hirshfeld charges for carbon monoxide reported as expected?
-        
-            Note. Table 1 in doi:10.1007/BF01113058 reports Hirshfeld charge for Carbon atom as
-                  0.06 when STO-3G basis set was used and
-                  0.14 when 6-311G** basis set was used.
-                  Here, Psi4 calculation was done using STO-3G.
+    def test_chgsum_co(self) -> None:
+        """Are Hirshfeld charges for carbon monoxide reported as expected?
+
+        Note. Table 1 in doi:10.1007/BF01113058 reports Hirshfeld charge for Carbon atom as
+              0.06 when STO-3G basis set was used and
+              0.14 when 6-311G** basis set was used.
+              Here, Psi4 calculation was done using STO-3G.
         """
 
         copath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "co.out")
@@ -135,5 +130,5 @@ class HirshfeldTest(unittest.TestCase):
         analysis = Hirshfeld(data, vol, os.path.dirname(os.path.realpath(__file__)))
         analysis.calculate()
 
-        self.assertAlmostEqual(numpy.sum(analysis.fragcharges), 0, delta=1e-2)
-        assert_allclose(analysis.fragcharges, [ 0.10590126, -0.11277786], atol=1e-3)
+        assert abs(numpy.sum(analysis.fragcharges)) < 1e-2
+        assert_allclose(analysis.fragcharges, [0.10590126, -0.11277786], atol=1e-3)

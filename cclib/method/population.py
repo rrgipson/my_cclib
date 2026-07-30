@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2018, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -8,49 +6,61 @@
 """Population analyses based on cclib data."""
 
 import logging
+from typing import TYPE_CHECKING
+
+from cclib.method.calculationmethod import Method, MissingAttributeError
+from cclib.progress import Progress
 
 import numpy
 
-from cclib.method.calculationmethod import Method, MissingAttributeError
+
+if TYPE_CHECKING:
+    from cclib.parser.data import ccData
 
 
 class Population(Method):
     """An abstract base class for population-type methods."""
 
     # All of these are typically required for population analyses.
-    required_attrs = ('homos', 'mocoeffs', 'nbasis')
+    required_attrs = ("homos", "mocoeffs", "nbasis")
 
     # At least one of these are typically required.
-    overlap_attributes = ('aooverlaps', 'fooverlaps')
+    overlap_attributes = ("aooverlaps", "fooverlaps")
 
-    def __init__(self, data, progress=None, \
-                 loglevel=logging.INFO, logname="Log"):
+    def __init__(
+        self,
+        data: "ccData",
+        progress: Progress | None = None,
+        loglevel: int = logging.INFO,
+        logname: str = "Log",
+    ) -> None:
         super().__init__(data, progress, loglevel, logname)
 
         self.fragresults = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of the object."""
         return "Population"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a representation of the object."""
         return "Population"
 
-    def _check_required_attributes(self):
+    def _check_required_attributes(self) -> None:
         super()._check_required_attributes()
-        
-        if self.overlap_attributes and not any(hasattr(self.data, a) for a in self.overlap_attributes):
+
+        if self.overlap_attributes and not any(
+            hasattr(self.data, a) for a in self.overlap_attributes
+        ):
             raise MissingAttributeError(
-                    'Need overlap matrix (aooverlaps or fooverlaps attribute) for Population methods')
+                "Need overlap matrix (aooverlaps or fooverlaps attribute) for Population methods"
+            )
 
-    def partition(self, indices=None):
-
+    def partition(self, indices: list[list[int]] | None = None) -> bool:
         if not hasattr(self, "aoresults"):
             self.calculate()
 
-        if not indices:
-
+        if indices is None:
             # Build list of groups of orbitals in each atom for atomresults.
             if hasattr(self.data, "aonames"):
                 names = self.data.aonames
@@ -60,22 +70,21 @@ class Population(Method):
             atoms = []
             indices = []
 
-            name = names[0].split('_')[0]
+            name = names[0].split("_")[0]
             atoms.append(name)
             indices.append([0])
 
             for i in range(1, len(names)):
-                name = names[i].split('_')[0]
+                name = names[i].split("_")[0]
                 try:
                     index = atoms.index(name)
-                except ValueError: #not found in atom list
+                except ValueError:  # not found in atom list
                     atoms.append(name)
                     indices.append([i])
                 else:
                     indices[index].append(i)
 
         natoms = len(indices)
-        nmocoeffs = len(self.aoresults[0])
 
         # Build results numpy array[3].
         alpha = len(self.aoresults[0])
@@ -89,11 +98,8 @@ class Population(Method):
         # For each spin, splice numpy array at ao index,
         #   and add to correct result row.
         for spin in range(len(results)):
-
-            for i in range(natoms): # Number of groups.
-
-                for j in range(len(indices[i])): # For each group.
-
+            for i in range(natoms):  # Number of groups.
+                for j in range(len(indices[i])):  # For each group.
                     temp = self.aoresults[spin][:, indices[i][j]]
                     results[spin][:, i] = numpy.add(results[spin][:, i], temp)
 

@@ -1,29 +1,28 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2017, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Test geometry optimization logfiles in cclib"""
 
-import os
-import unittest
+from typing import TYPE_CHECKING
+
+from cclib.parser import utils
 
 import numpy
-
-from common import get_minimum_carbon_separation
-
+from common import get_minimum_carbon_separation, is_optdone, is_optnew, is_optunknown
 from skip import skipForLogfile, skipForParser
 
-__filedir__ = os.path.realpath(os.path.dirname(__file__))
+
+if TYPE_CHECKING:
+    from cclib.parser.data import ccData
 
 
-class GenericGeoOptTest(unittest.TestCase):
+class GenericGeoOptTest:
     """Generic geometry optimization unittest"""
 
     # In STO-3G, H has 1, C has 3.
-    nbasisdict = {1:1, 6:5}
+    nbasisdict = {1: 1, 6: 5}
 
     # Some programs print surplus atom coordinates by default.
     extracoords = 0
@@ -32,189 +31,252 @@ class GenericGeoOptTest(unittest.TestCase):
     extrascfs = 0
 
     # Approximate B3LYP energy of dvb after SCF in STO-3G.
-    b3lyp_energy = -10365
-    b3lyp_tolerance = 40
+    scfenergy = -380.90674109218116
+    scfenergy_tolerance = 1.4699729516340807
 
-    @skipForParser('Molcas', 'The parser is still being developed so we skip this test')
-    @skipForParser('MOPAC', 'The success status is not parsed yet')
-    def test_success(self):
-        self.assertTrue(self.data.metadata['success'])
-
-    def testnatom(self):
+    def testnatom(self, data: "ccData") -> None:
         """Is the number of atoms equal to 20?"""
-        self.assertEqual(self.data.natom, 20)
+        assert data.natom == 20
 
-    def testatomnos(self):
+    def testatomnos(self, data: "ccData") -> None:
         """Are the atomnos correct?"""
         # This will work only for numpy
-        #self.assertEqual(self.data.atomnos.dtype.char, 'i')
+        # self.assertEqual(data.atomnos.dtype.char, 'i')
 
-        atomnos_types = [numpy.issubdtype(atomno, numpy.signedinteger)
-                         for atomno in self.data.atomnos]
-        self.assertTrue(numpy.alltrue(atomnos_types))
+        atomnos_types = [numpy.issubdtype(atomno, numpy.signedinteger) for atomno in data.atomnos]
+        assert numpy.all(atomnos_types)
 
-        self.assertEqual(self.data.atomnos.shape, (20,) )
+        assert data.atomnos.shape == (20,)
 
-        count_C = sum(self.data.atomnos == 6)
-        count_H = sum(self.data.atomnos == 1)
-        self.assertEqual(count_C + count_H, 20)
+        count_C = sum(data.atomnos == 6)
+        count_H = sum(data.atomnos == 1)
+        assert count_C + count_H == 20
 
-    def testatomcoords(self):
+    def testatomcoords(self, data: "ccData") -> None:
         """Are atomcoords consistent with natom and Angstroms?"""
-        natom = len(self.data.atomcoords[0])
-        ref = self.data.natom
+        natom = len(data.atomcoords[0])
+        ref = data.natom
         msg = f"natom is {int(ref)} but len(atomcoords[0]) is {int(natom)}"
-        self.assertEqual(natom, ref, msg)
+        assert natom == ref, msg
 
-    def testatomcoords_units(self):
+    def testatomcoords_units(self, data: "ccData") -> None:
         """Are atomcoords consistent with Angstroms?"""
-        min_carbon_dist = get_minimum_carbon_separation(self.data)
+        min_carbon_dist = get_minimum_carbon_separation(data)
         dev = abs(min_carbon_dist - 1.34)
-        self.assertTrue(
-            dev < 0.15, f"Minimum carbon dist is {min_carbon_dist:.2f} (not 1.34)"
-        )
+        assert dev < 0.15, f"Minimum carbon dist is {min_carbon_dist:.2f} (not 1.34)"
 
-    @skipForParser('Molcas', 'The parser is still being developed so we skip this test')
-    def testcharge_and_mult(self):
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("xTB", "Not implemented yet")
+    def testcharge_and_mult(self, data: "ccData") -> None:
         """Are the charge and multiplicity correct?"""
-        self.assertEqual(self.data.charge, 0)
-        self.assertEqual(self.data.mult, 1)
+        assert data.charge == 0
+        assert data.mult == 1
 
-    @skipForParser('MOPAC', 'Not implemented.')
-    def testnbasis(self):
+    @skipForParser("MOPAC", "Not implemented.")
+    @skipForParser("xTB", "not implemented yet")
+    def testnbasis(self, data: "ccData") -> None:
         """Is the number of basis set functions correct?"""
-        count = sum([self.nbasisdict[n] for n in self.data.atomnos])
-        self.assertEqual(self.data.nbasis, count)
+        count = sum([self.nbasisdict[n] for n in data.atomnos])
+        assert data.nbasis == count
 
-    @skipForParser('Turbomole', 'The parser is still being developed so we skip this test')
-    def testcoreelectrons(self):
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    @skipForParser("Serenity", "not implemented yet")
+    def testcoreelectrons(self, data: "ccData") -> None:
         """Are the coreelectrons all 0?"""
-        ans = numpy.zeros(self.data.natom, 'i')
-        numpy.testing.assert_array_equal(self.data.coreelectrons, ans)
+        ans = numpy.zeros(data.natom, "i")
+        numpy.testing.assert_array_equal(data.coreelectrons, ans)
 
-    @skipForParser('Molcas', 'The parser is still being developed so we skip this test')
-    def testnormalisesym(self):
-        """Did this subclass overwrite normalisesym?"""
-        # https://stackoverflow.com/a/8747890
-        self.logfile.normalisesym("A")
-
-    @skipForParser('Molcas', 'The parser is still being developed so we skip this test')
-    @skipForParser('MOPAC', 'Not implemented.')
-    def testhomos(self):
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("MOPAC", "Not implemented.")
+    @skipForParser("xTB", "Not implemented yet")
+    def testhomos(self, data: "ccData") -> None:
         """Is the index of the HOMO equal to 34?"""
         ref = numpy.array([34], "i")
-        msg = f"{numpy.array_repr(self.data.homos)} != array([34], 'i')"
-        numpy.testing.assert_array_equal(self.data.homos, ref, msg)
+        msg = f"{numpy.array_repr(data.homos)} != array([34], 'i')"
+        numpy.testing.assert_array_equal(data.homos, ref, msg)
 
-    @skipForParser('MOPAC', 'The scfvalues attribute is not parsed yet')
-    def testscfvaluetype(self):
+    @skipForParser("MOPAC", "The scfvalues attribute is not parsed yet")
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print scfvalues to fchk")
+    @skipForParser("xTB", "not implemented yet")
+    def testscfvaluetype(self, data: "ccData") -> None:
         """Are scfvalues and its elements the right type?"""
-        self.assertEqual(type(self.data.scfvalues),type([]))
-        self.assertEqual(type(self.data.scfvalues[0]),type(numpy.array([])))
+        assert isinstance(data.scfvalues, list)
+        assert isinstance(data.scfvalues[0], numpy.ndarray)
 
-    def testscfenergy(self):
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print SCF energy to fchk")
+    def testscfenergy(self, data: "ccData") -> None:
         """Is the SCF energy close to target?"""
-        scf = self.data.scfenergies[-1]
-        ref = self.b3lyp_energy
-        tol = self.b3lyp_tolerance
-        msg = f"Final SCF energy: {scf:f} not {int(ref)} +- {int(tol)}eV"
-        self.assertAlmostEqual(scf, ref, delta=40, msg=msg)
+        assert abs(
+            data.scfenergies[-1] - utils.convertor(self.scfenergy, "hartree", "eV")
+        ) < utils.convertor(self.scfenergy_tolerance, "hartree", "eV")
 
-    def testscfenergydim(self):
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print SCF energy to fchk")
+    @skipForParser("xTB", "Not implemented yet")
+    def testscfenergydim(self, data: "ccData") -> None:
         """Is the number of SCF energies consistent with atomcoords?"""
-        count_scfenergies = self.data.scfenergies.shape[0] - self.extrascfs
-        count_atomcoords = self.data.atomcoords.shape[0] - self.extracoords
-        self.assertEqual(count_scfenergies, count_atomcoords)
+        count_scfenergies = data.scfenergies.shape[0] - self.extrascfs
+        count_atomcoords = data.atomcoords.shape[0] - self.extracoords
+        assert count_scfenergies == count_atomcoords
 
-    @skipForParser('MOPAC', 'The scftargets attribute is not parsed yet')
-    def testscftargetdim(self):
-        """Do the scf targets have the right dimensions?"""
-        dim_scftargets = self.data.scftargets.shape
-        dim_scfvalues = (len(self.data.scfvalues),len(self.data.scfvalues[0][0]))
-        self.assertEqual(dim_scftargets, dim_scfvalues)
+    @skipForLogfile("FChk/basicGaussian09", "Gaussian doesn't print scftargets to fchk")
+    @skipForLogfile("FChk/basicGaussian16", "Gaussian doesn't print scftargets to fchk")
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print scftargets to fchk")
+    @skipForParser("MOPAC", "The scftargets attribute is not parsed yet")
+    @skipForParser("xTB", "not implemented yet")
+    def testscftargetdim(self, data: "ccData") -> None:
+        """Do the SCF convergence targets have the right dimensions?"""
+        dim_scftargets = data.scftargets.shape
+        dim_scfvalues = (len(data.scfvalues), len(data.scfvalues[0][0]))
+        assert dim_scftargets == dim_scfvalues
 
-    @skipForParser('MOPAC', 'Not implemented.')
-    def testgeovalues_atomcoords(self):
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print geovalues to fchk")
+    @skipForParser("MOPAC", "Not implemented.")
+    @skipForParser("xTB", "not implemented yet")
+    def testgeovalues_atomcoords(self, data: "ccData") -> None:
         """Are atomcoords consistent with geovalues?"""
-        count_geovalues = len(self.data.geovalues)
-        count_coords = len(self.data.atomcoords) - self.extracoords
+        count_geovalues = len(data.geovalues)
+        count_coords = len(data.atomcoords) - self.extracoords
         msg = f"len(atomcoords) is {int(count_coords)} but len(geovalues) is {int(count_geovalues)}"
-        self.assertEqual(count_geovalues, count_coords, msg)
+        assert count_geovalues == count_coords, msg
 
-    @skipForParser('MOPAC', 'Not implemented.')
-    def testgeovalues_scfvalues(self):
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print geovalues to fchk")
+    @skipForParser("MOPAC", "Not implemented.")
+    @skipForParser("xTB", "not implemented yet")
+    def testgeovalues_scfvalues(self, data: "ccData") -> None:
         """Are scfvalues consistent with geovalues?"""
-        count_scfvalues = len(self.data.scfvalues) - self.extrascfs
-        count_geovalues = len(self.data.geovalues)
-        self.assertEqual(count_scfvalues, count_geovalues)
+        count_scfvalues = len(data.scfvalues) - self.extrascfs
+        count_geovalues = len(data.geovalues)
+        assert count_scfvalues == count_geovalues
 
-    @skipForParser('MOPAC', 'Not implemented.')
-    def testgeotargets(self):
-        """Do the geo targets have the right dimensions?"""
-        dim_geotargets = self.data.geotargets.shape
-        dim_geovalues = (len(self.data.geovalues[0]), )
-        self.assertEqual(dim_geotargets, dim_geovalues)
+    @skipForLogfile("FChk/basicGaussian09", "Gaussian doesn't print geotargets to fchk")
+    @skipForLogfile("FChk/basicGaussian16", "Gaussian doesn't print geotargets to fchk")
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print geotargets to fchk")
+    @skipForParser("MOPAC", "Not implemented.")
+    @skipForParser("PySCF", "not implemented yet")
+    @skipForParser("xTB", "not implemented yet")
+    @skipForParser("Serenity", "geo targets are not printed in Serenity.")
+    def testgeotargets(self, data: "ccData") -> None:
+        """Do the geometry optimization targets have the right dimensions?"""
+        dim_geotargets = data.geotargets.shape
+        dim_geovalues = (len(data.geovalues[0]),)
+        assert dim_geotargets == dim_geovalues
 
-    @skipForParser('MOPAC', 'Not implemented.')
-    def testoptdone(self):
+    @skipForLogfile(
+        "FChk/basicGaussian09",
+        "Gaussian 09 gives no way of determining geometry convergence from the fchk file",
+    )
+    @skipForParser("MOPAC", "Not implemented.")
+    @skipForParser("PySCF", "not implemented yet")
+    @skipForParser("xTB", "not implemented yet")
+    def testoptdone(self, data: "ccData") -> None:
         """Has the geometry converged and set optdone to True?"""
-        self.assertTrue(self.data.optdone)
-        self.assertTrue(numpy.all(numpy.abs(self.data.geovalues[-1]) <= self.data.geotargets))
+        assert isinstance(data.optdone, list)
+        assert len(data.optdone) == 1
+        assert all(isinstance(val, int) for val in data.optdone)
+
+    @skipForLogfile("FChk/basicGaussian09", "Gaussian doesn't print geotargets to fchk")
+    @skipForLogfile("FChk/basicGaussian16", "Gaussian doesn't print geotargets to fchk")
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print geotargets to fchk")
+    @skipForParser("MOPAC", "Not implemented.")
+    @skipForParser("PySCF", "geotargets not implemented yet")
+    @skipForParser("xTB", "not implemented yet")
+    @skipForParser("Serenity", "geotargets not printed currently")
+    def testgeoconverged(self, data: "ccData") -> None:
+        """Has the geometry converged and set optdone to True?"""
+        assert numpy.all(numpy.abs(data.geovalues[-1]) <= data.geotargets)
+
+    @skipForParser("ADF", "Not implemented.")
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("DALTON", "Not implemented.")
+    @skipForParser("GAMESS", "Not implemented.")
+    @skipForParser("GAMESSUK", "Not implemented.")
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("Molpro", "Not implemented.")
+    @skipForParser("MOPAC", "Not implemented.")
+    @skipForParser("NWChem", "Not implemented.")
+    @skipForParser("xTB", "not implemented yet")
+    def testoptstatus(self, data: "ccData") -> None:
+        """Is optstatus consistent with geovalues and reasonable?"""
+        assert len(data.optstatus) == len(data.geovalues)
+        assert data.optstatus[0] == data.OPT_NEW
+        for i in range(1, len(data.optstatus) - 1):
+            assert data.optstatus[i] == data.OPT_UNKNOWN
+        assert data.optstatus[-1] == data.OPT_DONE
+
+    @skipForParser("ADF", "Not implemented yet")
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("FChk", "Rotational constants are never written to fchk files")
+    @skipForParser("GAMESS", "Not implemented yet")
+    @skipForParser("GAMESSUK", "Not implemented yet")
+    @skipForParser("Molcas", "Not implemented yet")
+    @skipForParser("Molpro", "Not implemented yet")
+    @skipForLogfile("MOPAC/basicMOPAC2016", "Not present in this file")
+    @skipForParser("NWChem", "Not implemented yet")
+    @skipForParser("Psi4", "Not implemented yet")
+    @skipForParser(
+        "QChem", "Q-Chem doesn't print rotational constants during geometry optimizations"
+    )
+    @skipForParser("Turbomole", "Not implemented yet")
+    @skipForParser("Serenity", "not implemented in Serenity")
+    def testrotconsts(self, data: "ccData") -> None:
+        """Each geometry leads to a row in the rotational constants entry."""
+        assert data.rotconsts.shape == (len(data.atomcoords), 3)
+
+        # Are the rotational constants ordered from largest to smallest?
+        for i in range(len(data.atomcoords)):
+            rotconsts = data.rotconsts[i]
+            idx = rotconsts.argsort()[::-1]
+            numpy.testing.assert_equal(rotconsts, rotconsts[idx])
+
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    def testmoenergies(self, data: "ccData") -> None:
+        """Are only the final MOs parsed?"""
+        assert len(data.moenergies) == 1
+        if hasattr(data, "mocoeffs"):
+            assert len(data.mocoeffs) == 1
 
     @skipForParser("ADF", "Not implemented.")
     @skipForParser("DALTON", "Not implemented.")
     @skipForParser("GAMESS", "Not implemented.")
     @skipForParser("GAMESSUK", "Not implemented.")
     @skipForParser("Jaguar", "Not implemented.")
-    @skipForParser('Molcas', 'The parser is still being developed so we skip this test')
-    @skipForParser("Molpro", "Not implemented.")
     @skipForParser("MOPAC", "Not implemented.")
-    @skipForParser("NWChem", "Not implemented.")
-    @skipForParser("ORCA", "Not implemented.")
-    @skipForParser("QChem", "Not implemented.")
-    def testoptstatus(self):
-        """Is optstatus consistent with geovalues and reasonable?"""       
-        self.assertEqual(len(self.data.optstatus), len(self.data.geovalues))
-        self.assertEqual(self.data.optstatus[0], self.data.OPT_NEW)
-        for i in range(1, len(self.data.optstatus)-1):
-            self.assertEqual(self.data.optstatus[i], self.data.OPT_UNKNOWN)
-        self.assertEqual(self.data.optstatus[-1], self.data.OPT_DONE)
+    @skipForParser("PySCF", "Not implemented.")
+    @skipForParser("xTB", "not implemented yet")
+    def testgrads(self, data) -> None:
+        """Do nuclear gradients exist?"""
+        assert hasattr(data, "grads")
 
-    @skipForParser('ADF', 'Not implemented yet')
-    @skipForParser('DALTON', 'Not implemented yet')
-    @skipForParser('FChk', 'Rotational constants are never written to fchk files')
-    @skipForParser('GAMESS', 'Not implemented yet')
-    @skipForParser('GAMESSUK', 'Not implemented yet')
-    @skipForParser('Jaguar', 'Not implemented yet')
-    @skipForParser('Molcas', 'Not implemented yet')
-    @skipForParser('Molpro', 'Not implemented yet')
-    @skipForLogfile('MOPAC/basicMOPAC2016', 'Not present in this file')
-    @skipForParser('NWChem', 'Not implemented yet')
-    @skipForParser('ORCA', 'Not implemented yet')
-    @skipForParser('Psi4', 'Not implemented yet')
-    @skipForParser('QChem', 'Not implemented yet')
-    @skipForParser('Turbomole', 'Not implemented yet')
-    def testrotconsts(self):
-        """Each geometry leads to a row in the rotational constants entry."""
-        self.assertEqual(self.data.rotconsts.shape, (len(self.data.atomcoords), 3))
-
-    @skipForParser('Molcas', 'The parser is still being developed so we skip this test')
-    def testmoenergies(self):
-        """Are only the final MOs parsed?"""
-        self.assertEqual(len(self.data.moenergies), 1)
-        if hasattr(self.data, "mocoeffs"):
-            self.assertEqual(len(self.data.mocoeffs), 1)
-
-    @skipForParser('ADF', 'Not implemented.')
-    @skipForParser('DALTON', 'Not implemented.')
-    @skipForParser('GAMESS', 'Not implemented.')
-    @skipForParser('GAMESSUK', 'Not implemented.')
-    @skipForParser('Jaguar', 'Not implemented.')
-    @skipForParser('MOPAC', 'Not implemented.')
-    @skipForParser('NWChem', 'Not implemented.')
-    def testgradsdim(self):
+    @skipForParser("ADF", "Not implemented.")
+    @skipForParser("DALTON", "Not implemented.")
+    @skipForParser("GAMESS", "Not implemented.")
+    @skipForParser("GAMESSUK", "Not implemented.")
+    @skipForParser("Jaguar", "Not implemented.")
+    @skipForParser("MOPAC", "Not implemented.")
+    @skipForParser("PySCF", "Not implemented.")
+    @skipForLogfile(
+        "FChk/basicQChem5.4",
+        "Q-Chem has grads but no way to verify the number of times they appear",
+    )
+    @skipForParser("xTB", "not implemented yet")
+    def testgradsdim(self, data: "ccData") -> None:
         """Do the grads have the right dimensions?"""
-        self.assertEqual(self.data.grads.shape,(len(self.data.geovalues),self.data.natom,3))
+        # This originally compared against the length of geovalues, but some
+        # parsers don't have it, and consistency between the number of
+        # geovalues and SCF energies is checked elsewhere (the combination of
+        # testscfenergydim and testgeovalues_atomcoords).
+        assert data.grads.shape == (len(data.scfenergies) - self.extrascfs, data.natom, 3)
+
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("MOPAC", "The success status is not parsed yet")
+    @skipForLogfile("FChk/basicGaussian09", "impossible to determine success of calculation")
+    @skipForLogfile("FChk/basicQChem5.4", "impossible to determine success of calculation")
+    @skipForLogfile("Molcas/basicOpenMolcas18.0/dvb_gopt.out", "not implemented yet")
+    @skipForParser("Serenity", "not implemented yet")
+    def testmetadata_success(self, data: "ccData") -> None:
+        """Does metadata have expected keys and values?"""
+        assert "success" in data.metadata
+        assert data.metadata["success"]
 
 
 class ADFGeoOptTest(GenericGeoOptTest):
@@ -223,8 +285,8 @@ class ADFGeoOptTest(GenericGeoOptTest):
     extracoords = 1
     extrascfs = 1
 
-    b3lyp_energy = -140
-    b3lyp_tolerance = 1
+    scfenergy = -5.144905330719283
+    scfenergy_tolerance = 0.03674932379085202
 
 
 class DALTONGeoOptTest(GenericGeoOptTest):
@@ -239,20 +301,81 @@ class DALTONGeoOptTest(GenericGeoOptTest):
     # Although DALTON generally has three criteria for convergence, it normally only
     # requires two of them to end a geometry optimization. This is printed in the output
     # and can probably be tweaked in the input, but we don't parsed that in cclib.
-    def testoptdone(self):
+    def testgeoconverged(self, data: "ccData") -> None:
         """Has the geometry converged and set optdone to True?"""
-        self.assertTrue(self.data.optdone)
-        convergence = numpy.abs(self.data.geovalues[-1]) <= self.data.geotargets
-        self.assertTrue(sum(convergence) >= 2)
+        convergence = numpy.abs(data.geovalues[-1]) <= data.geotargets
+        assert sum(convergence) >= 2
+
+    def testrotconsts(self, data) -> None:
+        """DALTON only prints rotational constants for the first geometry."""
+        assert data.rotconsts.shape == (1, 3)
+
+
+class FChkGeoOptTest(GenericGeoOptTest):
+    """Customized geometry optimization unittest"""
+
+    def testoptstatus(self, data) -> None:
+        """Is optstatus consistent with geovalues and reasonable?"""
+        # Geometry convergence values (geovalues) are not consistently
+        # available in formatted checkpoint files, so compare length against
+        # the number of nuclear gradients instead.
+        assert len(data.optstatus) == len(data.grads)
+        # These checks are similar to the parent class, but lifts the
+        # constraint that each point have a single status.  This handles the
+        # case where the input geometry is already converged, and this
+        # geometry is both new and done.
+        assert is_optnew(data.optstatus[0])
+        for i in range(1, len(data.optstatus) - 1):
+            assert is_optunknown(data.optstatus[i])
+        assert is_optdone(data.optstatus[-1])
 
 
 class GaussianGeoOptTest(GenericGeoOptTest):
     """Customized geometry optimization unittest"""
 
-    def testgradsorientation(self):
+    def testgradsorientation(self, data: "ccData") -> None:
         """Are the orientations for grads and atomcoords are same?"""
         # since z-coordinates of atomcoords are all 0 for dvb, z-values of grads should be all 0
-        assert numpy.alltrue(numpy.abs(self.data.grads[:,:,2]) < 1e-14)
+        assert numpy.all(numpy.abs(data.grads[:, :, 2]) < 1e-14)
+
+
+class GaussianFChkGeoOptTest(GaussianGeoOptTest):
+    """Customized geometry optimization unittest"""
+
+    @skipForLogfile(
+        "FChk/basicGaussian09",
+        "Gaussian 09 gives no way of determining geometry convergence from the fchk file",
+    )
+    def testoptstatus(self, data) -> None:
+        """Is optstatus consistent with geovalues and reasonable?"""
+        # Geometry convergence values (geovalues) are not consistently
+        # available in formatted checkpoint files, so compare length against
+        # the number of nuclear gradients instead.
+        assert len(data.optstatus) == len(data.grads)
+        # These checks are similar to the parent class, but lifts the
+        # constraint that each point have a single status.  This handles the
+        # case where the input geometry is already converged, and this
+        # geometry is both new and done.
+        #
+        # For Gaussian, which only prints the final coordinates, it is not
+        # possible to say if those coordinates are the only ones in the
+        # optimization, so we can't say if they're new.  There are still ways
+        # to say if they are converged, depending on the Gaussian version.
+        # Only 09 has no way of determining this at all.
+        #
+        # assert is_optnew(data.optstatus[0])
+        for i in range(1, len(data.optstatus) - 1):
+            assert is_optunknown(data.optstatus[i])
+        assert is_optdone(data.optstatus[-1])
+
+
+class JaguarGeoOptTest(GenericGeoOptTest):
+    """Customized geometry optimization unittest"""
+
+    def testrotconsts(self, data) -> None:
+        """Jaguar only prints rotational constants for the first and last geometries."""
+        assert data.rotconsts.shape == (2, 3)
+
 
 class MolcasGeoOptTest(GenericGeoOptTest):
     """Customized geometry optimization unittest"""
@@ -285,21 +408,22 @@ class MolproGeoOptTest(GenericGeoOptTest):
     # It is also possible to use the convergency criterion of (...)
     #
     # Source: https://www.molpro.net/info/2012.1/doc/manual/node592.html
-    def testoptdone(self):
+    def testgeoconverged(self, data: "ccData") -> None:
         """Has the geometry converged and set optdone to True?"""
-        self.assertTrue(self.data.optdone)
-        target_e, target_g, target_s = self.data.geotargets
-        value_e, value_g, value_s = self.data.geovalues[-1]
-        converged = (value_e < target_e and value_g < target_g) or (value_g < target_g and value_s < target_s)
-        self.assertTrue(converged)
+        target_e, target_g, target_s = data.geotargets
+        value_e, value_g, value_s = data.geovalues[-1]
+        converged = (value_e < target_e and value_g < target_g) or (
+            value_g < target_g and value_s < target_s
+        )
+        assert converged
 
 
 class MOPACGeoOptTest(GenericGeoOptTest):
     """Customized geometry optimization unittest for MOPAC."""
 
     # The geometry optimization unit test logfile uses a PM7 Hamiltonian.
-    b3lyp_energy = 2.22
-    b3lyp_tolerance = 0.01
+    scfenergy = 0.08166294233283113
+    scfenergy_tolerance = 1.6e-5
 
 
 class NWChemGeoOptTest(GenericGeoOptTest):
@@ -326,15 +450,13 @@ class OrcaGeoOptTest(GenericGeoOptTest):
     #   2) gradient is overachieved and displacement is reasonable (3 x tolerance)
     #   3) displacement is overachieved and gradient is reasonable (3 x tolerance)
     #   4) energy, gradients and angles are converged (displacements not considered)
-    # All these exceptions are signaleld in the output with some comments, and here
+    # All these exceptions are signaled in the output with some comments, and here
     # we include the first three exceptions for the pruposes of the unit test.
-    def testoptdone(self):
+    def testgeoconverged(self, data: "ccData") -> None:
         """Has the geometry converged and set optdone to True?"""
 
-        self.assertTrue(self.data.optdone)
-
-        targets = self.data.geotargets
-        values = numpy.abs(self.data.geovalues[-1])
+        targets = data.geotargets
+        values = numpy.abs(data.geovalues[-1])
 
         target_e = targets[0]
         target_g = targets[1:3]
@@ -344,11 +466,19 @@ class OrcaGeoOptTest(GenericGeoOptTest):
         value_x = values[3:]
 
         conv_all = all(values < targets)
-        conv_e = value_e < 25*target_e and all(value_g < target_g) and all(value_x < target_x)
-        conv_g = value_e < target_e and all(value_g < target_g/3.0) and all(value_x < target_x*3.0)
-        conv_x = value_e < target_e and all(value_g < target_g*3.0) and all(value_x < target_x/3.0)
+        conv_e = value_e < 25 * target_e and all(value_g < target_g) and all(value_x < target_x)
+        conv_g = (
+            value_e < target_e and all(value_g < target_g / 3.0) and all(value_x < target_x * 3.0)
+        )
+        conv_x = (
+            value_e < target_e and all(value_g < target_g * 3.0) and all(value_x < target_x / 3.0)
+        )
         converged = conv_all or conv_e or conv_g or conv_x
-        self.assertTrue(converged)
+        assert converged
+
+    def testrotconsts(self, data) -> None:
+        """ORCA only prints rotational constants for the final geometry."""
+        assert data.rotconsts.shape == (1, 3)
 
 
 class Psi4GeoOptTest(GenericGeoOptTest):
@@ -358,36 +488,31 @@ class Psi4GeoOptTest(GenericGeoOptTest):
     #     http://sirius.chem.vt.edu/psi4manual/latest/optking.html
     # and the default is to check that the max. force is converged and if the max energy change
     # or dispalcement is converged. This is in fact what is tested below.
-    def testoptdone(self):
+    def testgeoconverged(self, data: "ccData") -> None:
         """Has the geometry converged and set optdone to True?"""
 
-        self.assertTrue(self.data.optdone)
-
-        targets = self.data.geotargets
-        values = numpy.abs(self.data.geovalues[-1])
+        targets = data.geotargets
+        values = numpy.abs(data.geovalues[-1])
 
         # Since the other criteria are not used and are not printed in this case, they should
         # be parsed as numpy.inf, for which we can check.
-        self.assertTrue(numpy.isinf(targets[2]))
-        self.assertTrue(numpy.isinf(targets[4]))
+        assert numpy.isinf(targets[2])
+        assert numpy.isinf(targets[4])
 
         conv = values[1] < targets[1] and (values[0] < targets[0] or values[3] < targets[3])
-        self.assertTrue(conv)
+        assert conv
 
 
-if __name__=="__main__":
+class XTBGeoOptTest(GenericGeoOptTest):
+    """Customized restricted single point unittest"""
 
-    import sys
-    sys.path.insert(1, os.path.join(__filedir__, ".."))
-
-    from test_data import DataSuite
-    suite = DataSuite(['GeoOpt'])
-    suite.testall()
+    scfenergy = -26.438242468348
+    scfenergy_tolerance = 1.0e-6
 
 
 class TurbomoleKeepGeoOptTest(GenericGeoOptTest):
     """Customized geometry optimization unittest"""
-    
+
     # In Turbomole, each optimisation step is written to its own file,
     # (job.1, job.2 ... job.last) and consists of three (or more)
     # submodule steps:
@@ -414,19 +539,19 @@ class TurbomoleKeepGeoOptTest(GenericGeoOptTest):
     # The test data was called with jobex -keep.
     extracoords = 1
     extrascfs = 1
-    
+
+
 class TurbomoleGeoOptTest(GenericGeoOptTest):
     """Customized geometry optimization unittest"""
-    
+
     # The test data was not called with jobex -keep.
     extracoords = 1
     extrascfs = 0
-    
-    def testoptstatus(self):
-        """Is optstatus consistent with geovalues and reasonable?""" 
-        self.assertEqual(len(self.data.optstatus), len(self.data.geovalues))
+
+    def testoptstatus(self, data: "ccData") -> None:
+        """Is optstatus consistent with geovalues and reasonable?"""
+        assert len(data.optstatus) == len(data.geovalues)
         # We only have the final energy available, so there's no point looking for OPT_NEW.
-        for i in range(1, len(self.data.optstatus)-1):
-            self.assertEqual(self.data.optstatus[i], self.data.OPT_UNKNOWN)
-        self.assertEqual(self.data.optstatus[-1], self.data.OPT_DONE)
-    
+        for i in range(1, len(data.optstatus) - 1):
+            assert data.optstatus[i] == data.OPT_UNKNOWN
+        assert data.optstatus[-1] == data.OPT_DONE

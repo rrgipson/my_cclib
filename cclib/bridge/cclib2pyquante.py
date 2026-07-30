@@ -1,14 +1,19 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2020, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Bridge for using cclib data in PyQuante (http://pyquante.sourceforge.net)."""
 
-import numpy
+from typing import TYPE_CHECKING
+
 from cclib.parser.utils import find_package
+
+import numpy
+
+
+if TYPE_CHECKING:
+    from cclib.parser.data import ccData
 
 
 class MissingAttributeError(Exception):
@@ -20,12 +25,12 @@ if _found_pyquante2:
     from pyquante2 import molecule
 
 
-def _check_pyquante():
+def _check_pyquante() -> None:
     if not _found_pyquante2:
         raise ImportError("You must install `pyquante2` to use this function")
 
 
-def makepyquante(data):
+def makepyquante(data: "ccData") -> "molecule":
     """Create a PyQuante Molecule from ccData object."""
     _check_pyquante()
 
@@ -44,10 +49,7 @@ def makepyquante(data):
     moldesc = numpy.insert(data.atomcoords[-1], 0, data.atomnos, 1).tolist()
 
     return molecule(
-        [tuple(x) for x in moldesc],
-        units="Angstroms",
-        charge=data.charge,
-        multiplicity=data.mult,
+        [tuple(x) for x in moldesc], units="Angstroms", charge=data.charge, multiplicity=data.mult
     )
 
 

@@ -1,25 +1,27 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2020, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Stockholder partitioning based on cclib data."""
-import copy
-import random
-import numpy
+
 import logging
 import math
 import os
-import sys
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Optional
 
 from cclib.method.calculationmethod import Method
 from cclib.method.volume import electrondensity_spin
-from cclib.parser.utils import convertor
-from cclib.parser.utils import find_package
+from cclib.parser.utils import convertor, find_package
 
-from typing import List
+import numpy
+
+
+if TYPE_CHECKING:
+    from cclib.method.volume import Volume
+    from cclib.parser.data import ccData
+    from cclib.progress import Progress
 
 
 class MissingInputError(Exception):
@@ -34,19 +36,19 @@ class Stockholder(Method):
 
     def __init__(
         self,
-        data,
-        volume,
-        proatom_path=None,
-        progress=None,
-        loglevel=logging.INFO,
-        logname="Log",
-    ):
-        """ Initialize Stockholder-type method object.
-            Inputs are:
-                data -- ccData object that describe target molecule.
-                volume -- Volume object that describe target Cartesian grid.
-                proatom_path -- path to proatom densities
-                (directory containing atoms.h5 in horton or c2_001_001_000_400_075.txt in chargemol)
+        data: "ccData",
+        volume: "Volume",
+        proatom_path: str,
+        progress: Optional["Progress"] = None,
+        loglevel: int = logging.INFO,
+        logname: str = "Log",
+    ) -> None:
+        """Initialize Stockholder-type method object.
+        Inputs are:
+            data -- ccData object that describe target molecule.
+            volume -- Volume object that describe target Cartesian grid.
+            proatom_path -- path to proatom densities
+            (directory containing atoms.h5 in horton or c2_001_001_000_400_075.txt in chargemol)
         """
         super().__init__(data, progress, loglevel, logname)
 
@@ -54,9 +56,9 @@ class Stockholder(Method):
         self.proatom_path = proatom_path
 
         # Check whether proatom_path is a valid directory or not.
-        assert os.path.isdir(
-            proatom_path
-        ), "Directory that contains proatom densities should be added as an input."
+        assert os.path.isdir(proatom_path), (
+            "Directory that contains proatom densities should be added as an input."
+        )
 
         # Read in reference charges.
         self.proatom_density = []
@@ -66,21 +68,20 @@ class Stockholder(Method):
             self.proatom_density.append(density)
             self.radial_grid_r.append(r)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of the object."""
         return "Stockholder"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a representation of the object."""
         return "Stockholder"
 
-    def _check_required_attributes(self):
+    def _check_required_attributes(self) -> None:
         super()._check_required_attributes()
 
     def _read_proatom(
-        self, directory, atom_num, charge  # type = str  # type = int  # type = float
-    ):
-        # type: (...) -> numpy.ndarray, numpy.ndarray
+        self, directory: str, atom_num: int, charge: float
+    ) -> tuple[numpy.ndarray, numpy.ndarray]:
         """Return a list containing proatom reference densities."""
         # TODO: Treat calculations with psuedopotentials
         # TODO: Modify so that proatom densities are read only once for horton
@@ -98,12 +99,10 @@ class Stockholder(Method):
         charge_ceil = int(math.ceil(charge))
 
         chargemol_path_floor = os.path.join(
-            directory,
-            f"c2_{atom_num:03d}_{atom_num:03d}_{atom_num - charge_floor:03d}_500_100.txt",
+            directory, f"c2_{atom_num:03d}_{atom_num:03d}_{atom_num - charge_floor:03d}_500_100.txt"
         )
         chargemol_path_ceil = os.path.join(
-            directory,
-            f"c2_{atom_num:03d}_{atom_num:03d}_{atom_num - charge_ceil:03d}_500_100.txt",
+            directory, f"c2_{atom_num:03d}_{atom_num:03d}_{atom_num - charge_ceil:03d}_500_100.txt"
         )
         horton_path = os.path.join(directory, "atoms.h5")
 
@@ -156,11 +155,9 @@ class Stockholder(Method):
                         gridtype = gridtype.decode("UTF-8")
 
                     # First verify that it is one of recognized grids
-                    assert gridtype in [
-                        "LinearRTransform",
-                        "ExpRTransform",
-                        "PowerRTransform",
-                    ], "Grid type not recognized."
+                    assert gridtype in ["LinearRTransform", "ExpRTransform", "PowerRTransform"], (
+                        "Grid type not recognized."
+                    )
 
                     if gridtype == "LinearRTransform":
                         # Linear transformation. r(t) = rmin + t*(rmax - rmin)/(npoint - 1)
@@ -196,10 +193,12 @@ class Stockholder(Method):
 
         return density, radiusgrid
 
-    def calculate(self, indices=None, fupdate=0.05):
-        """ Charge density on a Cartesian grid is a common routine required for Stockholder-type
-            and related methods. This abstract class prepares the grid if input Volume object
-            is empty.
+    def calculate(
+        self, indices: Sequence[Sequence[int]] | None = None, fupdate: float = 0.05
+    ) -> bool:
+        """Charge density on a Cartesian grid is a common routine required for Stockholder-type
+        and related methods. This abstract class prepares the grid if input Volume object
+        is empty.
         """
         # Obtain charge densities on the grid if it does not contain one.
         if not numpy.any(self.volume.data):
@@ -223,3 +222,5 @@ class Stockholder(Method):
         else:
             self.logger.info("Using charge densities from the provided Volume object.")
             self.charge_density = self.volume
+
+        return True

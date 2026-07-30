@@ -1,0 +1,40 @@
+# Psi3/Psi4: pyflakes and spacing
+fb35435f66eeb8b4825f7022cc2ab315e5379483
+## https://github.com/cclib/cclib/pull/1307
+# remove trailing whitespace
+37740d43064bc13445b19ff2d3c5f1154f202896
+# fix end of file
+8f3fbf7d1fc060a3c8522343dd103604bd946e5d
+# fix line endings to be LF
+7b2e8701dcb1a1a6c437919b185be78a35c3e2a5
+# ruff for all but cclib/parser
+e986fd9bb37ca0113707f88f6fea7f2318671cdd
+# ruff for cclib/parser
+04b3e4694e001e4b91457674a490b723e17af2b7
+# isort
+3c499da3e44e4a8ae983407c0f07c71996d202d8
+06e54bd1eb663dd948973037f336d5190f4734ce
+# pre-commit autofix
+7f407d1c7383a17cbe0995fc7bd65daf964f2eb9
+# pre-commit autofix
+0ae04b8fd098645aa3d4805abba311ccb86762dc
+# pre-commit autofix
+57041a7cd327d4206d9c870b7d37acaa556596c6
+# pre-commit autofix
+8243cb2c418f4f373c3a3e48ffa0c213dd77988e
+# pre-commit autofix
+47ee1d84e2325b15c9e5508d6d48ae1f49e507b3
+# Apply tombi
+c79af1b4bcdb62bb9efe71a240b908f41e005b84
+# Apply isort via ruff
+a1a30a14674ee54579c8e4bdade3ecc9b3bb58b9
+# pre-commit: apply yamlfmt fixes
+e440b69835cc39e741f50f10a39eda1f6f8a2002
+# pre-commit: move TOML and YAML checks after Python
+b7b31cf838fc2baae968dfd81d44508688cf90d7
+# testdata file cleanup
+55e2824b794a3390862f0b8466de8b574b2cc879
+# test: alphabetical order for programs in skip decorators
+09be8ebcf6287428be3ccb2d805e3d3ec94c516a
+# Serenity: rename gopt directory to dvb_gopt
+d0457be74b69c4f05445466c7bf4fca399a32dc8

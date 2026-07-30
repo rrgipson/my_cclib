@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2020, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -8,45 +6,44 @@
 """Test the DDEC6 in cclib"""
 
 import os
-import unittest
+import sys
+
+from cclib.io import ccread
+from cclib.method import DDEC6, volume
+from cclib.method.calculationmethod import MissingAttributeError
+from cclib.parser import Psi4
 
 import numpy
-
-from cclib.method import DDEC6, volume
-from cclib.parser import Psi4
-from cclib.io import ccread
-from cclib.method.calculationmethod import MissingAttributeError
-
+import pytest
 from numpy.testing import assert_allclose
 
 from ..test_data import getdatafile
 
 
-class DDEC6Test(unittest.TestCase):
+class DDEC6Test:
     """DDEC6 method tests."""
 
-    def setUp(self):
-        super(DDEC6Test, self).setUp()
+    def setup_method(self) -> None:
         self.parse()
 
-    def parse(self, molecule_name=None):
-        if molecule_name == None:
+    def parse(self, molecule_name: str | None = None) -> None:
+        if molecule_name is None:
             self.data, self.logfile = getdatafile(Psi4, "basicPsi4-1.2.1", ["water_mp2.out"])
         else:
             self.data = ccread(
                 os.path.join(os.path.dirname(os.path.realpath(__file__)), f"{molecule_name}.out")
             )
 
-    def testmissingrequiredattributes(self):
+    def testmissingrequiredattributes(self) -> None:
         """Is an error raised when required attributes are missing?"""
         for missing_attribute in DDEC6.required_attrs:
             self.parse()
             vol = volume.Volume((-4, -4, -4), (4, 4, 4), (0.2, 0.2, 0.2))
             delattr(self.data, missing_attribute)
-            with self.assertRaises(MissingAttributeError):
-                trial = DDEC6(self.data, vol, os.path.dirname(os.path.realpath(__file__)))
+            with pytest.raises(MissingAttributeError):
+                trial = DDEC6(self.data, vol, os.path.dirname(os.path.realpath(__file__)))  # noqa: F841
 
-    def test_proatom_read(self):
+    def test_proatom_read(self) -> None:
         """Are proatom densities imported correctly?"""
 
         self.parse()
@@ -61,7 +58,7 @@ class DDEC6Test(unittest.TestCase):
             2.66407612e-01,
             2.66407322e-01,
         ]  # Hydrogen first five densities
-        refH_r = [
+        refH_r = [  # noqa: F841
             1.17745807e-07,
             4.05209491e-06,
             3.21078677e-05,
@@ -75,7 +72,7 @@ class DDEC6Test(unittest.TestCase):
             2.98258487e02,
             2.98258290e02,
         ]  # Oxygen first five densities
-        refO_r = [
+        refO_r = [  # noqa: F841
             5.70916728e-09,
             1.97130512e-07,
             1.56506399e-06,
@@ -87,10 +84,10 @@ class DDEC6Test(unittest.TestCase):
         assert_allclose(self.analysis.proatom_density[1][0:5], refH_den, rtol=1e-3)
         assert_allclose(self.analysis.proatom_density[2][0:5], refH_den, rtol=1e-3)
 
-    def test_water_charges(self):
+    def test_water_charges(self) -> None:
         """Are charges and quantities in each step of DDEC6 algorithm calculated correctly
         for water?
-        
+
         Here, values are compared against `chargemol` calculations.
         Due to the differences in basis set used for calculation and slightly different integration
         grid, some discrepancy is inevitable in the comparison.
@@ -125,15 +122,15 @@ class DDEC6Test(unittest.TestCase):
         assert_allclose(analysis.reference_charges[1], [-0.831591, 0.415430, 0.416161], rtol=0.20)
         # STEP 3
         # Check integrated charge density (rho^cond(r)) on grid with integrated values (=nelec).
-        self.assertAlmostEqual(
-            analysis.charge_density.integrate(), analysis.rho_cond.integrate(), delta=1
-        )
+        assert abs(analysis.charge_density.integrate() - analysis.rho_cond.integrate()) < 1
         for atomi in range(len(analysis.data.atomnos)):
-            self.assertAlmostEqual(
-                analysis._integrate_from_radial([analysis._cond_density[atomi]], [atomi])
-                + analysis.reference_charges[-1][atomi],
-                analysis.data.atomnos[atomi],
-                delta=0.5,
+            assert (
+                abs(
+                    analysis._integrate_from_radial([analysis._cond_density[atomi]], [atomi])
+                    + analysis.reference_charges[-1][atomi]
+                    - analysis.data.atomnos[atomi]
+                )
+                < 0.5
             )
         # Also compare with data from `chargemol`
         # discrepancy comes from the fact that `chargemol` grid and `horton` grid do not exactly match
@@ -167,11 +164,15 @@ class DDEC6Test(unittest.TestCase):
         # Check assigned charges
         assert_allclose(analysis.fragcharges, [-0.757097, 0.378410, 0.378687], atol=0.2)
 
-    def test_chgsum_h2(self):
-        """ Are DDEC6 charges for hydrogen atoms in nonpolar H2 small as expected?
-        
-            Using much denser grid (spacing of 0.1 rather than 0.2 which is the cube file included
-            in the test) gives [0.00046066, 0.00046066]. 
+    @pytest.mark.skipif(
+        sys.version_info > (3, 8),
+        reason="This test doesn't converge with newer psi4 versions availiable with python >3.8",
+    )
+    def test_chgsum_h2(self) -> None:
+        """Are DDEC6 charges for hydrogen atoms in nonpolar H2 small as expected?
+
+        Using much denser grid (spacing of 0.1 rather than 0.2 which is the cube file included
+        in the test) gives [0.00046066, 0.00046066].
         """
 
         self.parse("h2")
@@ -179,15 +180,15 @@ class DDEC6Test(unittest.TestCase):
         analysis = DDEC6(self.data, vol, os.path.dirname(os.path.realpath(__file__)))
         analysis.calculate()
 
-        self.assertAlmostEqual(analysis.fragcharges[0], analysis.fragcharges[1], delta=1e-12)
+        assert abs(analysis.fragcharges[0] - analysis.fragcharges[1]) < 1e-12
 
-    def test_chgsum_co(self):
-        """ Are DDEC6 charges for carbon monoxide reported as expected?
-        
-            Deviation from a total of zero (-0.00682) occurs because the integrated value of total
-            density (14.006876594937234) is slightly larger than # of electrons.
-            
-            Using a finer grid reduces this discrepancy.
+    def test_chgsum_co(self) -> None:
+        """Are DDEC6 charges for carbon monoxide reported as expected?
+
+        Deviation from a total of zero (-0.00682) occurs because the integrated value of total
+        density (14.006876594937234) is slightly larger than # of electrons.
+
+        Using a finer grid reduces this discrepancy.
         """
 
         self.parse("co")
@@ -197,16 +198,16 @@ class DDEC6Test(unittest.TestCase):
         analysis = DDEC6(self.data, imported_vol, os.path.dirname(os.path.realpath(__file__)))
         analysis.calculate()
 
-        self.assertAlmostEqual(numpy.sum(analysis.fragcharges), 0, delta=1e-2)
+        assert abs(numpy.sum(analysis.fragcharges) - 0) < 1e-2
         assert_allclose(analysis.fragcharges, [0.13221636, -0.13903595], atol=1e-3)
 
-    def test_chg_nh3(self):
-        """ Are DDEC6 charges for ammonia reported as expected?
-        
-            Deviation from a total of zero (0.026545) occurs because the integrated value of total
-            density (9.973453129261163) is slightly smaller than number of electrons.
-            
-            Using a finer grid reduces this discrepancy.
+    def test_chg_nh3(self) -> None:
+        """Are DDEC6 charges for ammonia reported as expected?
+
+        Deviation from a total of zero (0.026545) occurs because the integrated value of total
+        density (9.973453129261163) is slightly smaller than number of electrons.
+
+        Using a finer grid reduces this discrepancy.
         """
 
         self.parse("nh3")

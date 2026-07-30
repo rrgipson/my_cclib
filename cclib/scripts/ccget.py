@@ -1,28 +1,27 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 #
-# Copyright (c) 2017, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Script for loading data from computational chemistry files."""
 
-
+import difflib
 import glob
 import logging
 import os.path
-import difflib
-from functools import partial
-from pprint import pprint
 
 # This is needed for testing purposes only.
 import sys
+from functools import partial
+from pprint import pprint
+
+from cclib.io import ccread
+from cclib.parser import ccData
+from cclib.parser.logfilewrapper import URL_PATTERN
 
 import numpy
-
-from cclib.parser import ccData
-from cclib.io import ccread, URL_PATTERN
 
 
 # Set up options for pretty-printing output.
@@ -30,7 +29,7 @@ pprint = partial(pprint, width=120, compact=True)
 numpy.set_printoptions(linewidth=120)
 
 
-def ccget():
+def ccget() -> None:
     """Parse files with cclib based on command line arguments."""
 
     import argparse
@@ -38,42 +37,40 @@ def ccget():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "attribute_or_compchemlogfile", nargs="+",
-        help="one or more attributes to be parsed from one ore more logfiles",
+        "attribute_or_compchemlogfile",
+        nargs="+",
+        help="one or more attributes to be parsed from one or more logfiles",
     )
 
     group = parser.add_mutually_exclusive_group()
 
     group.add_argument(
-        "--list", "-l",
+        "--list",
+        "-l",
         action="store_true",
         help="print a list of attributes available in each file",
     )
     group.add_argument(
-        "--json", "-j",
-        action="store_true",
-        help="the given logfile is in CJSON format",
+        "--json", "-j", action="store_true", help="the given logfile is in CJSON format"
     )
     group.add_argument(
-        "--multi", "-m",
-        action="store_true",
-        help="parse multiple input files as one input stream",
+        "--multi", "-m", action="store_true", help="parse multiple input files as one input stream"
     )
 
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="more verbose parsing output (only errors by default)",
     )
     parser.add_argument(
-        "--future", "-u",
+        "--future",
+        "-u",
         action="store_true",
         help="use experimental features (currently optdone_as_list)",
     )
     parser.add_argument(
-        "--full", "-f",
-        action="store_true",
-        help="toggle full print behaviour for attributes",
+        "--full", "-f", action="store_true", help="toggle full print behaviour for attributes"
     )
 
     args = parser.parse_args()
@@ -113,7 +110,7 @@ def ccget():
             fuzzy_attr = difflib.get_close_matches(arg, ccData._attrlist, n=1, cutoff=0.85)
             if len(fuzzy_attr) > 0:
                 fuzzy_attr = fuzzy_attr[0]
-                logging.warning(
+                logging.getLogger("cclib").warning(
                     f"Attribute '{arg}' not found, but attribute '{fuzzy_attr}' is close. "
                     f"Using '{fuzzy_attr}' instead."
                 )
@@ -153,26 +150,34 @@ def ccget():
 
     # Now parse each file and print out the requested attributes.
     for filename in filenames:
-
         if multifile:
             name = f"{', '.join(filename[:-1])} and {filename[-1]}"
         else:
             name = filename
+
+        # Set custom handles so we can actually change log-levels.
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("[%(name)s %(levelname)s] %(message)s"))
+        logging.getLogger("cclib").addHandler(handler)
 
         # The keyword dictionary are not used so much. but could be useful for
         # passing options downstream. For example, we might use --future for
         # triggering experimental or alternative behavior (as with optdone).
         kwargs = {}
         if verbose:
-            kwargs['verbose'] = True
-            kwargs['loglevel'] = logging.INFO
+            kwargs["loglevel"] = logging.INFO
+            logging.getLogger("cclib").setLevel(logging.INFO)
+
         else:
-            kwargs['verbose'] = False
-            kwargs['loglevel'] = logging.ERROR
+            # TODO: Are we sure we want to ignore warnings by default?
+            kwargs["loglevel"] = logging.WARNING
+            logging.getLogger("cclib").setLevel(logging.WARNING)
+
         if future:
-            kwargs['future'] = True
+            kwargs["future"] = True
+
         if cjsonfile:
-            kwargs['cjson'] = True
+            kwargs["cjson"] = True
 
         print(f"Attempting to read {name}")
         data = ccread(filename, **kwargs)
@@ -218,5 +223,4 @@ def ccget():
 
 
 if __name__ == "__main__":
-
     ccget()

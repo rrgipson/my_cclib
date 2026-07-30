@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2018, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -9,9 +7,9 @@
 
 import random
 
-import numpy
-
 from cclib.method.population import Population
+
+import numpy
 
 
 class CSPA(Population):
@@ -23,11 +21,11 @@ class CSPA(Population):
     def __init__(self, *args):
         super().__init__(logname="CSPA", *args)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of the object."""
         return f"CSPA of {self.data}"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a representation of the object."""
         return f'CSPA("{self.data}")'
 
@@ -40,7 +38,7 @@ class CSPA(Population):
         self.logger.info("Creating attribute aoresults: array[3]")
 
         # Determine number of steps, and whether process involves beta orbitals.
-        unrestricted = (len(self.data.mocoeffs)==2)
+        unrestricted = len(self.data.mocoeffs) == 2
         nbasis = self.data.nbasis
         self.aoresults = []
         alpha = len(self.data.mocoeffs[0])
@@ -57,16 +55,13 @@ class CSPA(Population):
 
         step = 0
         for spin in range(len(self.data.mocoeffs)):
-
             for i in range(len(self.data.mocoeffs[spin])):
-
                 if self.progress and random.random() < fupdate:
                     self.progress.update(step, "C^2 Population Analysis")
 
                 submocoeffs = self.data.mocoeffs[spin][i]
                 scale = numpy.inner(submocoeffs, submocoeffs)
                 tempcoeffs = numpy.multiply(submocoeffs, submocoeffs)
-                tempvec = tempcoeffs/scale
                 self.aoresults[spin][i] = numpy.divide(tempcoeffs, scale).astype("d")
 
                 step += 1
@@ -88,9 +83,7 @@ class CSPA(Population):
             beta = numpy.zeros([size], "d")
 
         for spin in range(len(self.fragresults)):
-
             for i in range(self.data.homos[spin] + 1):
-
                 temp = numpy.reshape(self.fragresults[spin][i], (size,))
                 self.fragcharges = numpy.add(self.fragcharges, temp)
                 if spin == 0:

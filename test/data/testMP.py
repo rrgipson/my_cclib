@@ -1,93 +1,98 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2017, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Test Moller-Plesset logfiles in cclib"""
 
-import os
-import unittest
+from typing import TYPE_CHECKING
 
 import numpy
 
-__filedir__ = os.path.realpath(os.path.dirname(__file__))
+
+if TYPE_CHECKING:
+    from cclib.parser.data import ccData
 
 
-class GenericMP2Test(unittest.TestCase):
+class GenericMP2Test:
     """Generic MP2 unittest"""
 
     level = 2
 
-    def testsizeandshape(self):
+    def testsizeandshape(self, data: "ccData") -> None:
         """(MP2) Are the dimensions of mpenergies correct?"""
-        self.assertEqual(self.data.mpenergies.shape,
-                         (len(self.data.scfenergies), self.level-1))
+        assert data.mpenergies.shape == (len(data.scfenergies), self.level - 1)
 
-    def testsign(self):
+    def testsign(self, data: "ccData") -> None:
         """Are the Moller-Plesset corrections negative?"""
         if self.level == 2:
-            corrections = self.data.mpenergies[:,0] - self.data.scfenergies
+            corrections = data.mpenergies[:, 0] - data.scfenergies
         else:
-            corrections = self.data.mpenergies[:,self.level-2] - self.data.mpenergies[:,self.level-3]
-        self.assertTrue(numpy.alltrue(corrections < 0.0))
+            corrections = data.mpenergies[:, self.level - 2] - data.mpenergies[:, self.level - 3]
+        assert numpy.all(corrections < 0.0)
+
 
 class GenericMP3Test(GenericMP2Test):
     """Generic MP3 unittest"""
+
     level = 3
+
 
 class GenericMP4SDQTest(GenericMP2Test):
     """Generic MP4(SDQ) unittest"""
+
     level = 4
+
 
 class GenericMP4SDTQTest(GenericMP2Test):
     """Generic MP4(SDTQ) unittest"""
+
     level = 4
+
 
 class GenericMP5Test(GenericMP2Test):
     """Generic MP5 unittest"""
+
     level = 5
 
 
 class GaussianMP2Test(GenericMP2Test):
     """Customized MP2 unittest"""
-        
-    def testnocoeffs(self):
-        """Are natural orbital coefficients the right size?"""
-        self.assertEqual(self.data.nocoeffs.shape, (self.data.nmo, self.data.nbasis))
 
-    def testnocoeffs(self):
+    def testnocoeffs(self, data: "ccData") -> None:
+        """Are natural orbital coefficients the right size?"""
+        assert data.nocoeffs.shape == (data.nmo, data.nbasis)
+
+    def testnooccnos(self, data: "ccData") -> None:
         """Are natural orbital occupation numbers the right size?"""
-        self.assertEqual(self.data.nooccnos.shape, (self.data.nmo, ))
+        assert data.nooccnos.shape == (data.nmo,)
+
 
 class GaussianMP3Test(GenericMP2Test):
     """Customized MP3 unittest"""
+
     level = 3
+
 
 class GaussianMP4SDQTest(GenericMP2Test):
     """Customized MP4-SDQ unittest"""
+
     level = 4
+
 
 class GaussianMP4SDTQTest(GenericMP2Test):
     """Customized MP4-SDTQ unittest"""
+
     level = 4
 
 
 class QChemMP4SDQTest(GenericMP2Test):
     """Customized MP4-SDQ unittest"""
+
     level = 4
+
 
 class QChemMP4SDTQTest(GenericMP2Test):
     """Customized MP4-SD(T)Q unittest"""
+
     level = 5
-
-
-if __name__=="__main__":
-
-    import sys
-    sys.path.insert(1, os.path.join(__filedir__, ".."))
-
-    from test_data import DataSuite
-    suite = DataSuite(['MP'])
-    suite.testall()
