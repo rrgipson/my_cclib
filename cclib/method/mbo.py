@@ -1,4 +1,6 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2017, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -7,9 +9,9 @@
 
 import random
 
-from cclib.method.density import Density
-
 import numpy
+
+from cclib.method.density import Density
 
 
 class MBO(Density):
@@ -18,11 +20,11 @@ class MBO(Density):
     def __init__(self, *args):
         super().__init__(logname="MBO", *args)
 
-    def __str__(self) -> str:
+    def __str__(self):
         """Return a string representation of the object."""
         return f"Mayer's bond order of {self.data}"
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         """Return a representation of the object."""
         return f'Mayer\'s bond order("{self.data}")'
 
@@ -30,15 +32,17 @@ class MBO(Density):
         """Calculate Mayer's bond orders."""
 
         retval = super().calculate(fupdate)
-        if not retval:  # making density didn't work
+        if not retval: #making density didn't work
             return False
 
         # Do we have the needed info in the ccData object?
-        if not (hasattr(self.data, "aooverlaps") or hasattr(self.data, "fooverlaps")):
+        if not (hasattr(self.data, "aooverlaps")
+                or hasattr(self.data, "fooverlaps")):
             self.logger.error("Missing overlap matrix")
-            return False  # let the caller of function know we didn't finish
+            return False #let the caller of function know we didn't finish
 
         if not indices:
+
             # Build list of groups of orbitals in each atom for atomresults.
             if hasattr(self.data, "aonames"):
                 names = self.data.aonames
@@ -53,15 +57,15 @@ class MBO(Density):
             atoms = []
             indices = []
 
-            name = names[0].split("_")[0]
+            name = names[0].split('_')[0]
             atoms.append(name)
             indices.append([0])
 
             for i in range(1, len(names)):
-                name = names[i].split("_")[0]
+                name = names[i].split('_')[0]
                 try:
                     index = atoms.index(name)
-                except ValueError:  # not found in atom list
+                except ValueError: #not found in atom list
                     atoms.append(name)
                     indices.append([i])
                 else:
@@ -73,8 +77,8 @@ class MBO(Density):
         # Determine number of steps, and whether process involves beta orbitals.
         PS = []
         PS.append(numpy.dot(self.density[0], overlaps))
-        nstep = size**2  # approximately quadratic in size
-        unrestricted = len(self.data.mocoeffs) == 2
+        nstep = size**2 #approximately quadratic in size
+        unrestricted = (len(self.data.mocoeffs) == 2)
         if unrestricted:
             self.fragresults = numpy.zeros([2, size, size], "d")
             PS.append(numpy.dot(self.density[1], overlaps))
@@ -87,15 +91,19 @@ class MBO(Density):
 
         step = 0
         for i in range(len(indices)):
+
             if self.progress and random.random() < fupdate:
                 self.progress.update(step, "Mayer's Bond Order")
 
-            for j in range(i + 1, len(indices)):
+            for j in range(i+1, len(indices)):
+
                 tempsumA = 0
                 tempsumB = 0
 
                 for a in indices[i]:
+
                     for b in indices[j]:
+
                         if unrestricted:
                             tempsumA += 2 * PS[0][a][b] * PS[0][b][a]
                             tempsumB += 2 * PS[1][a][b] * PS[1][b][a]

@@ -1,31 +1,32 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2017, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Test logfiles related to basis sets"""
 
-from typing import TYPE_CHECKING
+import os
+import unittest
 
-import pytest
+from skip import skipForParser
+
+__filedir__ = os.path.realpath(os.path.dirname(__file__))
 
 
-if TYPE_CHECKING:
-    from cclib.parser.data import ccData
-
-
-class GenericBasisTest:
+class GenericBasisTest(unittest.TestCase):
     """Generic basis set unittest"""
 
     # The number of contraction per atom, by atom number.
-    contractions = {1: 1, 6: 3}
+    contractions = { 1: 1, 6: 3 }
 
     # Number of components in each contraction by subshell type,
     # so that we can infer nbasis from gbasis. Note how we assume
     # the basis set is not is spherical representation.
-    names = ["S", "P", "D", "F", "G"]
-    multiple = {"S": 1, "P": 3, "D": 6, "F": 10, "G": 15}
-    multiple_spher = {"S": 1, "P": 3, "D": 5, "F": 7, "G": 9}
+    names = ['S', 'P', 'D', 'F', 'G']
+    multiple = {'S': 1, 'P': 3, 'D': 6, 'F': 10, 'G': 15}
+    multiple_spher = {'S': 1, 'P': 3, 'D': 5, 'F': 7, 'G': 9}
     spherical = False
 
     # These are the expected exponents and coefficients for the first
@@ -34,60 +35,61 @@ class GenericBasisTest:
     gbasis_C_2s_func0 = [2.9412, -0.1000]
     gbasis_C_2p_func0 = [2.9412, 0.1559]
 
-    def testgbasis(self, data: "ccData") -> None:
+    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
+    def testgbasis(self):
         """Is gbasis the right length?"""
-        assert data.natom == len(data.gbasis)
+        self.assertEqual(self.data.natom, len(self.data.gbasis))
 
-    def testnames(self, data: "ccData") -> None:
+    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
+    def testnames(self):
         """Are the name of basis set functions acceptable?"""
-        for atom in data.gbasis:
+        for atom in self.data.gbasis:
             for fns in atom:
-                assert fns[0] in self.names, f"{fns[0]} not one of S or P"
+                self.assertTrue(fns[0] in self.names, f"{fns[0]} not one of S or P")
 
-    def testsizeofbasis(self, data: "ccData") -> None:
+    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
+    def testsizeofbasis(self):
         """Is the basis set the correct size?"""
 
         total = 0
         multiple = self.multiple_spher if self.spherical else self.multiple
-        for atom in data.gbasis:
-            for ftype, contraction in atom:
+        for atom in self.data.gbasis:
+            for (ftype, contraction) in atom:
                 total += multiple[ftype]
 
-        assert data.nbasis == total
+        self.assertEqual(self.data.nbasis, total)
 
-    def testcontractions(self, data: "ccData") -> None:
+    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
+    def testcontractions(self):
         """Are the number of contractions on all atoms correct?"""
-        for iatom, atom in enumerate(data.gbasis):
-            atomno = data.atomnos[iatom]
-            assert len(atom) == self.contractions[atomno]
+        for iatom, atom in enumerate(self.data.gbasis):
+            atomno = self.data.atomnos[iatom]
+            self.assertEqual(len(atom), self.contractions[atomno])
 
-    def testprimitives(self, data: "ccData") -> None:
+    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
+    def testprimitives(self):
         """Are all primitives 2-tuples?"""
-        for atom in data.gbasis:
+        for atom in self.data.gbasis:
             for ftype, contraction in atom:
                 for primitive in contraction:
-                    assert len(primitive) == 2
+                    self.assertEqual(len(primitive), 2)
 
-    def testcoeffs(self, data: "ccData") -> None:
+    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
+    def testcoeffs(self):
         """Are the atomic basis set exponents and coefficients correct?"""
 
-        for iatom, atom in enumerate(data.gbasis):
-            if data.atomnos[iatom] == 1:
+        for iatom,atom in enumerate(self.data.gbasis):
+            if self.data.atomnos[iatom] == 1:
                 coeffs = atom[0][1]
-                assert round(abs(coeffs[0][0] - self.gbasis_H_1s_func0[0]), 4) == 0
-                assert round(abs(coeffs[0][1] - self.gbasis_H_1s_func0[1]), 4) == 0
+                self.assertAlmostEqual(coeffs[0][0], self.gbasis_H_1s_func0[0], 4)
+                self.assertAlmostEqual(coeffs[0][1], self.gbasis_H_1s_func0[1], 4)
             else:
                 s_coeffs = atom[1][1]
                 p_coeffs = atom[2][1]
-                assert round(abs(s_coeffs[0][0] - self.gbasis_C_2s_func0[0]), 4) == 0
-                assert round(abs(p_coeffs[0][0] - self.gbasis_C_2p_func0[0]), 4) == 0
-                assert round(abs(s_coeffs[0][1] - self.gbasis_C_2s_func0[1]), 4) == 0
-                assert round(abs(p_coeffs[0][1] - self.gbasis_C_2p_func0[1]), 4) == 0
-
-    def testatomcoords(self, data: "ccData") -> None:
-        """Are the dimensions of atomcoords 1 x natom x 3?"""
-        expected_shape = (1, data.natom, 3)
-        assert data.atomcoords.shape == expected_shape
+                self.assertAlmostEqual(s_coeffs[0][0], self.gbasis_C_2s_func0[0], 4)
+                self.assertAlmostEqual(p_coeffs[0][0], self.gbasis_C_2p_func0[0], 4)
+                self.assertAlmostEqual(s_coeffs[0][1], self.gbasis_C_2s_func0[1], 4)
+                self.assertAlmostEqual(p_coeffs[0][1], self.gbasis_C_2p_func0[1], 4)
 
 
 class JaguarBasisTest(GenericBasisTest):
@@ -103,28 +105,26 @@ class JaguarBasisTest(GenericBasisTest):
 class GenericBigBasisTest(GenericBasisTest):
     """Generic big basis set unittest"""
 
-    contractions = {6: 20}
+    contractions = { 6: 20 }
 
-    @pytest.mark.skip("Write up a new test, and/or revise the one inherited.")
-    def testcoeffs(self, data: "ccData"):
+    @unittest.skip('Write up a new test, and/or revise the one inherited.')
+    def testcoeffs(self):
         """Are the basis set coefficients correct?"""
-        assert True
+        self.assertEqual(1, 1)
 
-    @pytest.mark.skip("# of contractions is 20 for VQZ, but 29 for CVQZ; unify files first.")
-    def testcontractions(self, data: "ccData") -> None:
+    @unittest.skip('# of contractions is 20 for VQZ, but 29 for CVQZ; unify files first.')
+    def testcontractions(self):
         """"""
-        assert True
+        self.assertEqual(1, 1)
 
 
 class DALTONBigBasisTest(GenericBigBasisTest):
     """Customized big basis set unittest"""
-
     spherical = True
 
 
 class GaussianBigBasisTest(GenericBigBasisTest):
     """Customized big basis set unittest"""
-
     spherical = True
 
 
@@ -134,28 +134,34 @@ class JaguarBigBasisTest(GenericBigBasisTest):
     spherical = True
 
     # Jaguar only goes up to F functions.
-    names = ["S", "P", "D", "F"]
+    names = ['S', 'P', 'D', 'F']
 
 
 class MolcasBigBasisTest(GenericBigBasisTest):
     """Customized big basis set unittest"""
-
     spherical = True
 
 
 class MolproBigBasisTest(GenericBigBasisTest):
     """Customized big basis set unittest"""
-
     spherical = True
 
 
 class Psi4BigBasisTest(GenericBigBasisTest):
     """Customized big basis set unittest"""
-
     spherical = True
 
 
 class QChemBigBasisTest(GenericBigBasisTest):
     """Customized big basis set unittest"""
-
     spherical = True
+
+
+if __name__=="__main__":
+
+    import sys
+    sys.path.insert(1, os.path.join(__filedir__, ".."))
+
+    from test_data import DataSuite
+    suite = DataSuite(['Basis'])
+    suite.testall()

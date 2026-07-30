@@ -1,18 +1,20 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2018, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Test Born-Oppenheimer molecular dynamics (BOMD) logfiles in cclib."""
 
-from typing import TYPE_CHECKING
+import os
+import unittest
 
 
-if TYPE_CHECKING:
-    from cclib.parser.data import ccData
+__filedir__ = os.path.realpath(os.path.dirname(__file__))
 
 
-class GenericBOMDTest:
+class GenericBOMDTest(unittest.TestCase):
     """Generic Born-Oppenheimer molecular dynamics unittest"""
 
     # To calculate the initial set of forces/velocities, programs
@@ -21,23 +23,23 @@ class GenericBOMDTest:
     nsteps = 35
     nenergies = 36
 
-    def testdimscfenergies(self, data: "ccData") -> None:
+    def testdimscfenergies(self):
         """Are the number of parsed energies consistent with the number of MD
         steps?
         """
-        assert data.scfenergies.shape == (self.nenergies,)
+        self.assertEqual(self.data.scfenergies.shape, (self.nenergies, ))
 
-    def testdimatomcoords(self, data: "ccData") -> None:
+    def testdimatomcoords(self):
         """Are the number of parsed geometries consistent with the number of
         MD steps?
         """
-        assert data.atomcoords.shape == (self.nenergies, 20, 3)
+        self.assertEqual(self.data.atomcoords.shape, (self.nenergies, 20, 3))
 
-    def testdimtime(self, data: "ccData") -> None:
+    def testdimtime(self):
         """Are the number of time points consistent with the number of MD
         steps?
         """
-        assert data.time.shape == (self.nsteps,)
+        self.assertEqual(self.data.time.shape, (self.nsteps, ))
 
 
 class GaussianBOMDTest(GenericBOMDTest):
@@ -46,3 +48,13 @@ class GaussianBOMDTest(GenericBOMDTest):
     # This may have something to do with our corrections for
     # extrapolation step rejection.
     nenergies = 35
+
+
+if __name__=="__main__":
+
+    import sys
+    sys.path.append(os.path.join(__filedir__, ".."))
+
+    from test_data import DataSuite
+    suite = DataSuite(['BOMD'])
+    suite.testall()

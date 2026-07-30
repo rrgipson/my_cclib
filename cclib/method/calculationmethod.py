@@ -1,4 +1,6 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2017, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -7,17 +9,9 @@
 
 import logging
 import sys
-from typing import TYPE_CHECKING, Optional
-
-
-if TYPE_CHECKING:
-    from cclib.parser.data import ccData
-    from cclib.progress import Progress
-
 
 class MissingAttributeError(Exception):
     pass
-
 
 class Method:
     """Abstract base class for all cclib method classes.
@@ -38,16 +32,8 @@ class Method:
 
     All the modules containing methods should be importable.
     """
-
     required_attrs = ()
-
-    def __init__(
-        self,
-        data: "ccData",
-        progress: Optional["Progress"] = None,
-        loglevel: int = logging.INFO,
-        logname: str = "Log",
-    ) -> None:
+    def __init__(self, data, progress=None, loglevel=logging.INFO, logname="Log"):
         """Initialise the Logfile object.
 
         This constructor is typically called by the constructor of a subclass.
@@ -65,11 +51,12 @@ class Method:
         handler.setFormatter(logging.Formatter(self.logformat))
         self.logger.addHandler(handler)
 
-    def _check_required_attributes(self) -> None:
+    def _check_required_attributes(self):
         """Check if required attributes are present in data."""
-        missing = [x for x in self.required_attrs if not hasattr(self.data, x)]
+        missing = [x for x in self.required_attrs
+                    if not hasattr(self.data, x)]
         if missing:
-            missing = " ".join(missing)
+            missing = ' '.join(missing)
             raise MissingAttributeError(
                 f"Could not parse required attributes to use method: {missing}"
             )

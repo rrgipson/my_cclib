@@ -1,5 +1,0 @@
-include ANNOUNCE
-include THANKS
-graft tools
-prune test
-global-exclude *.py[cod]

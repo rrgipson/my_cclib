@@ -1,225 +1,214 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2017, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Test unrestrictied single point logfiles in cclib"""
 
-from typing import TYPE_CHECKING
+import os
+import unittest
 
 import numpy
+
 from skip import skipForParser
+from skip import skipForLogfile
 
 
-if TYPE_CHECKING:
-    from cclib.parser.data import ccData
+__filedir__ = os.path.realpath(os.path.dirname(__file__))
 
 
-class GenericSPunTest:
+class GenericSPunTest(unittest.TestCase):
     """Generic unrestricted single point unittest"""
 
-    def testnatom(self, data: "ccData") -> None:
+    def testnatom(self):
         """Is the number of atoms equal to 20?"""
-        assert data.natom == 20
+        self.assertEqual(self.data.natom, 20)
 
-    def testatomnos(self, data: "ccData") -> None:
+    def testatomnos(self):
         """Are the atomnos correct?"""
-        assert numpy.all([numpy.issubdtype(atomno, numpy.signedinteger) for atomno in data.atomnos])
-        assert data.atomnos.shape == (20,)
-        assert sum(data.atomnos == 6) + sum(data.atomnos == 1) == 20
+        self.assertTrue(numpy.alltrue([numpy.issubdtype(atomno, numpy.signedinteger)
+                                       for atomno in self.data.atomnos]))
+        self.assertEqual(self.data.atomnos.shape, (20,) )
+        self.assertEqual(sum(self.data.atomnos==6) + sum(self.data.atomnos==1), 20)
 
-    @skipForParser("ADF", "???")
-    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
-    @skipForParser(
-        "DALTON",
-        "DALTON has a very low accuracy for the printed values of all populations (2 decimals rounded in a weird way), so let it slide for now",
-    )
-    @skipForParser("FChk", "The parser is still being developed so we skip this test")
-    @skipForParser("Jaguar", "???")
-    @skipForParser("Molcas", "Length is zero for some reason")
-    @skipForParser("Molpro", "???")
-    @skipForParser("Serenity", "not implemented yet")
-    @skipForParser("Turbomole", "???")
-    def testatomcharges(self, data: "ccData") -> None:
-        """Are atomic charges consistent with natom?"""
-        for atomcharge_type in data.atomcharges:
-            charges = data.atomcharges[atomcharge_type]
-            natom = data.natom
-            assert len(charges) == natom, (
-                f"len(atomcharges['{atomcharge_type}']) = {len(charges)}, natom = {natom}"
-            )
-
-    @skipForParser("ADF", "???")
-    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
-    @skipForParser(
-        "DALTON",
-        "DALTON has a very low accuracy for the printed values of all populations (2 decimals rounded in a weird way), so let it slide for now",
-    )
-    @skipForParser("FChk", "The parser is still being developed so we skip this test")
-    @skipForParser("Jaguar", "???")
-    @skipForParser("Molcas", "Length is zero for some reason")
-    @skipForParser("Molpro", "???")
-    @skipForParser("Serenity", "not included in testfile yet")
-    @skipForParser("Turbomole", "???")
-    def testatomcharges_mulliken(self, data: "ccData") -> None:
-        """Do Mulliken atomic charges sum to positive one?"""
-        charges = data.atomcharges["mulliken"]
-        assert abs(sum(charges) - 1.0) < 1.0e-2
-
-    def testatomcoords(self, data: "ccData") -> None:
+    def testatomcoords(self):
         """Are the dimensions of atomcoords 1 x natom x 3?"""
-        assert data.atomcoords.shape == (1, data.natom, 3)
+        self.assertEqual(self.data.atomcoords.shape,(1,self.data.natom,3))
 
-    @skipForParser("Jaguar", "Data file does not contain enough information")
-    def testdimmocoeffs(self, data: "ccData") -> None:
+    @skipForParser('Jaguar', 'Data file does not contain enough information')
+    def testdimmocoeffs(self):
         """Are the dimensions of mocoeffs equal to 2 x nmo x nbasis?"""
-        if hasattr(data, "mocoeffs"):
-            assert isinstance(data.mocoeffs, list)
-            assert len(data.mocoeffs) == 2
-            assert data.mocoeffs[0].shape == (data.nmo, data.nbasis)
-            assert data.mocoeffs[1].shape == (data.nmo, data.nbasis)
+        if hasattr(self.data, "mocoeffs"):
+            self.assertIsInstance(self.data.mocoeffs, list)
+            self.assertEqual(len(self.data.mocoeffs), 2)
+            self.assertEqual(self.data.mocoeffs[0].shape,
+                             (self.data.nmo, self.data.nbasis))
+            self.assertEqual(self.data.mocoeffs[1].shape,
+                             (self.data.nmo, self.data.nbasis))
 
-    @skipForParser("Jaguar", "Data file does not contain enough information")
-    @skipForParser("DALTON", "mocoeffs not implemented yet")
-    def testfornoormo(self, data: "ccData") -> None:
-        """Do we have NOs or MOs?"""
-        assert hasattr(data, "nocoeffs") or hasattr(data, "mocoeffs")
+    @skipForParser('Jaguar', 'Data file does not contain enough information')
+    @skipForParser('DALTON', 'mocoeffs not implemented yet')
+    def testfornsoormo(self):
+        """Do we have NSOs or MOs?"""
+        self.assertTrue(
+            hasattr(self.data, "nsocoeffs") or hasattr(self.data, "mocoeffs")
+        )
 
-    @skipForParser("Serenity", "no NOs in Serenity")
-    def testdimnoccnos(self, data: "ccData") -> None:
-        """Is the length of nooccnos equal to nmo?"""
-        if hasattr(data, "nooccnos"):
-            assert isinstance(data.nooccnos, numpy.ndarray)
-            # FIXME
-            assert data.nooccnos.shape in [(data.nmo,), (2, data.nmo)]
+    def testdimnsoccnos(self):
+        """Are the dimensions of nsooccnos equal to 2 x nmo?"""
+        if hasattr(self.data, "nsooccnos"):
+            self.assertIsInstance(self.data.nsooccnos, list)
+            self.assertIsInstance(self.data.nsooccnos[0], list)
+            self.assertIsInstance(self.data.nsooccnos[1], list)
+            self.assertEqual(len(self.data.nsooccnos), 2)
+            self.assertEqual(len(self.data.nsooccnos[0]), self.data.nmo)
+            self.assertEqual(len(self.data.nsooccnos[1]), self.data.nmo)
 
-    @skipForParser("Serenity", "no NOs in Serenity")
-    def testdimnocoeffs(self, data: "ccData") -> None:
-        """Are the dimensions of nocoeffs equal to 2 x nmo x nmo?"""
-        if hasattr(data, "nocoeffs"):
-            assert isinstance(data.nocoeffs, numpy.ndarray)
-            assert data.nocoeffs.shape == (2, data.nmo, data.nmo)
+    def testdimnsocoeffs(self):
+        """Are the dimensions of nsocoeffs equal to 2 x nmo x nmo?"""
+        if hasattr(self.data, "nsocoeffs"):
+            self.assertIsInstance(self.data.nsocoeffs, list)
+            self.assertIsInstance(self.data.nsocoeffs[0], numpy.ndarray)
+            self.assertIsInstance(self.data.nsocoeffs[1], numpy.ndarray)
+            self.assertEqual(len(self.data.nsocoeffs), 2)
+            self.assertEqual(self.data.nsocoeffs[0].shape, (self.data.nmo, self.data.nmo))
+            self.assertEqual(self.data.nsocoeffs[1].shape, (self.data.nmo, self.data.nmo))
 
-    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
-    def testcharge_and_mult(self, data: "ccData") -> None:
+    @skipForParser('Molcas','The parser is still being developed so we skip this test')
+    def testcharge_and_mult(self):
         """Are the charge and multiplicity correct?"""
-        assert data.charge == 1
-        assert data.mult == 2
+        self.assertEqual(self.data.charge, 1)
+        self.assertEqual(self.data.mult, 2)
 
-    def testhomos(self, data: "ccData") -> None:
+    def testhomos(self):
         """Are the homos correct?"""
-        msg = f"{numpy.array_repr(data.homos)} != array([34,33],'i')"
-        numpy.testing.assert_array_equal(data.homos, numpy.array([34, 33], "i"), msg)
+        msg = f"{numpy.array_repr(self.data.homos)} != array([34,33],'i')"
+        numpy.testing.assert_array_equal(self.data.homos, numpy.array([34,33],"i"), msg)
 
-    def testmoenergies(self, data: "ccData") -> None:
+    def testmoenergies(self):
         """Are the dims of the moenergies equals to 2 x nmo?"""
-        if hasattr(data, "moenergies"):
-            assert len(data.moenergies) == 2
-            assert len(data.moenergies[0]) == data.nmo
-            assert len(data.moenergies[1]) == data.nmo
+        if hasattr(self.data, "moenergies"):
+            self.assertEqual(len(self.data.moenergies), 2)
+            self.assertEqual(len(self.data.moenergies[0]), self.data.nmo)
+            self.assertEqual(len(self.data.moenergies[1]), self.data.nmo)
 
-    @skipForParser("FChk", "Fchk files do not have a section for symmetry")
-    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
-    @skipForParser("Molpro", "?")
-    @skipForParser("ORCA", "ORCA has no support for symmetry yet")
-    @skipForParser("Serenity", "Serenity does not use symmetry.")
-    def testmosyms(self, data: "ccData") -> None:
+    @skipForParser('FChk', 'Fchk files do not have a section for symmetry')
+    @skipForParser('Molcas','The parser is still being developed so we skip this test')
+    @skipForParser('Molpro', '?')
+    @skipForParser('ORCA', 'ORCA has no support for symmetry yet')
+    def testmosyms(self):
         """Are the dims of the mosyms equals to 2 x nmo?"""
-        shape = (len(data.mosyms), len(data.mosyms[0]))
-        assert shape == (2, data.nmo)
+        shape = (len(self.data.mosyms), len(self.data.mosyms[0]))
+        self.assertEqual(shape, (2, self.data.nmo))
 
 
 class GenericROSPTest(GenericSPunTest):
     """Customized restricted open-shell single point unittest"""
 
-    @skipForParser("DALTON", "mocoeffs not implemented yet")
-    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
-    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
-    def testdimmocoeffs(self, data: "ccData") -> None:
+    @skipForParser('DALTON', 'mocoeffs not implemented yet')
+    @skipForParser('Molcas','The parser is still being developed so we skip this test')
+    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
+    def testdimmocoeffs(self):
         """Are the dimensions of mocoeffs equal to 1 x nmo x nbasis?"""
-        assert isinstance(data.mocoeffs, list)
-        assert len(data.mocoeffs) == 1
-        assert data.mocoeffs[0].shape == (data.nmo, data.nbasis)
+        self.assertEqual(type(self.data.mocoeffs), type([]))
+        self.assertEqual(len(self.data.mocoeffs), 1)
+        self.assertEqual(self.data.mocoeffs[0].shape,
+                          (self.data.nmo, self.data.nbasis))
 
-    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
-    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
-    def testhomos(self, data: "ccData") -> None:
+    @skipForParser('Molcas','The parser is still being developed so we skip this test')
+    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
+    def testhomos(self):
         """Are the HOMO indices equal to 34 and 33 (one more alpha electron
         than beta electron)?
         """
-        msg = f"{numpy.array_repr(data.homos)} != array([34, 33], 'i')"
-        numpy.testing.assert_array_equal(data.homos, numpy.array([34, 33], "i"), msg)
+        msg = f"{numpy.array_repr(self.data.homos)} != array([34, 33], 'i')"
+        numpy.testing.assert_array_equal(self.data.homos, numpy.array([34, 33], "i"), msg)
 
-    @skipForParser("QChem", "prints 2 sets of different MO energies?")
-    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
-    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
-    def testmoenergies(self, data: "ccData") -> None:
+    @skipForParser('QChem', 'prints 2 sets of different MO energies?')
+    @skipForParser('Molcas','The parser is still being developed so we skip this test')
+    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
+    def testmoenergies(self):
         """Are the dims of the moenergies equals to 1 x nmo?"""
-        assert len(data.moenergies) == 1
-        assert len(data.moenergies[0]) == data.nmo
+        self.assertEqual(len(self.data.moenergies), 1)
+        self.assertEqual(len(self.data.moenergies[0]), self.data.nmo)
 
-    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
-    @skipForParser("Serenity", "Serenity does not use symmetry.")
-    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
-    def testmosyms(self, data: "ccData") -> None:
+    @skipForParser('Molcas','The parser is still being developed so we skip this test')
+    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
+    def testmosyms(self):
         """Are the dims of the mosyms equals to 1 x nmo?"""
-        shape = (len(data.mosyms), len(data.mosyms[0]))
-        assert shape == (1, data.nmo)
+        shape = (len(self.data.mosyms), len(self.data.mosyms[0]))
+        self.assertEqual(shape, (1, self.data.nmo))
 
 
 class GamessUK70SPunTest(GenericSPunTest):
     """Customized unrestricted single point unittest"""
 
-    def testdimmocoeffs(self, data: "ccData") -> None:
+    def testdimmocoeffs(self):
         """Are the dimensions of mocoeffs equal to 2 x (homos+6) x nbasis?"""
 
-        assert isinstance(data.mocoeffs, list)
-        assert len(data.mocoeffs) == 2
+        self.assertEqual(type(self.data.mocoeffs), type([]))
+        self.assertEqual(len(self.data.mocoeffs), 2)
 
         # This is only an issue in version 7.0 (and before?), since in the version 8.0
         # logfile all eigenvectors are happily printed.
-        shape_alpha = (data.homos[0] + 6, data.nbasis)
-        shape_beta = (data.homos[1] + 6, data.nbasis)
-        assert data.mocoeffs[0].shape == shape_alpha
-        assert data.mocoeffs[1].shape == shape_beta
+        shape_alpha = (self.data.homos[0]+6, self.data.nbasis)
+        shape_beta = (self.data.homos[1]+6, self.data.nbasis)
+        self.assertEqual(self.data.mocoeffs[0].shape, shape_alpha)
+        self.assertEqual(self.data.mocoeffs[1].shape, shape_beta)
 
-    def testnooccnos(self, data: "ccData") -> None:
+    def testnooccnos(self):
         """Are natural orbital occupation numbers the right size?"""
-        assert data.nooccnos.shape == (data.nmo,)
+        self.assertEqual(self.data.nooccnos.shape, (self.data.nmo, ))
 
 
 class GamessUK80SPunTest(GenericSPunTest):
     """Customized unrestricted single point unittest"""
 
-    def testnooccnos(self, data: "ccData") -> None:
+    def testnooccnos(self):
         """Are natural orbital occupation numbers the right size?"""
-        assert data.nooccnos.shape == (data.nmo,)
+        self.assertEqual(self.data.nooccnos.shape, (self.data.nmo, ))
 
 
 class GaussianSPunTest(GenericSPunTest):
     """Customized unrestricted single point unittest"""
 
-    def testatomspins(self, data: "ccData") -> None:
-        """Are atomic spins from Mulliken population analysis consistent with
-        natom and sum to one (doublet)?
-        """
-        spins = data.atomspins["mulliken"]
-        assert len(spins) == data.natom
-        assert abs(sum(spins) - 1.0) < 0.001
+    def testatomcharges(self):
+        """Are atomcharges (at least Mulliken) consistent with natom and sum to one?"""
+        for type_ in set(['mulliken'] + list(self.data.atomcharges.keys())):
+            charges = self.data.atomcharges[type_]
+            self.assertEqual(len(charges), self.data.natom)
+            self.assertAlmostEqual(sum(charges), 1.0, delta=0.001)
 
+    def testatomspins(self):
+        spins = self.data.atomspins['mulliken']
+        self.assertEqual(len(spins), self.data.natom)
+        self.assertAlmostEqual(sum(spins), 1.0, delta=0.001)
 
+            
 class JaguarSPunTest(GenericSPunTest):
     """Customized unrestricted single point unittest"""
 
-    def testmoenergies(self, data: "ccData") -> None:
+    def testmoenergies(self):
         """Are the dims of the moenergies equal to 2 x homos+11?"""
-        assert len(data.moenergies) == 2
-        assert len(data.moenergies[0]) == data.homos[0] + 11
-        assert len(data.moenergies[1]) == data.homos[1] + 11
+        self.assertEqual(len(self.data.moenergies), 2)
+        self.assertEqual(len(self.data.moenergies[0]), self.data.homos[0]+11)
+        self.assertEqual(len(self.data.moenergies[1]), self.data.homos[1]+11)
 
-    def testmosyms(self, data: "ccData") -> None:
+    def testmosyms(self):
         """Are the dims of the mosyms equals to 2 x nmo?"""
-        shape0 = (len(data.mosyms), len(data.mosyms[0]))
-        shape1 = (len(data.mosyms), len(data.mosyms[1]))
-        assert shape0 == (2, data.homos[0] + 11)
-        assert shape1 == (2, data.homos[1] + 11)
+        shape0 = (len(self.data.mosyms), len(self.data.mosyms[0]))
+        shape1 = (len(self.data.mosyms), len(self.data.mosyms[1]))
+        self.assertEqual(shape0, (2, self.data.homos[0]+11))
+        self.assertEqual(shape1, (2, self.data.homos[1]+11))
+
+
+if __name__=="__main__":
+
+    import sys
+    sys.path.insert(1, os.path.join(__filedir__, ".."))
+
+    from test_data import DataSuite
+    suite = DataSuite(['SPun'])
+    suite.testall()

@@ -1,34 +1,33 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2018, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Test the Volume and related methods in cclib"""
 
-import sys
-from pathlib import Path
+import os, sys
+import unittest
+import numpy
 
 from cclib.method import volume
 from cclib.parser import Gaussian, Psi4
 
-import numpy
-
-
 sys.path.insert(1, "..")
 
+from ..test_data import getdatafile
 from numpy.testing import assert_allclose
 
-from ..test_data import getdatafile
 
-
-class VolumeTest:
-    def test_scinotation(self) -> None:
+class VolumeTest(unittest.TestCase):
+    def test_scinotation(self):
         """Does the scientific notation writer work as expected?"""
 
-        assert volume.scinotation(1.0 / 654) == " 1.52905E-03"
-        assert volume.scinotation(-1.0 / 654) == "-1.52905E-03"
+        self.assertEqual(volume.scinotation(1.0 / 654), " 1.52905E-03")
+        self.assertEqual(volume.scinotation(-1.0 / 654), "-1.52905E-03")
 
-    def test_wavefunction(self) -> None:
+    def test_wavefunction(self):
         """Does the volume occupied by the HOMO integrate to the correct
         values?
         """
@@ -42,11 +41,11 @@ class VolumeTest:
         integral = wavefn.integrate()
         integral_square = wavefn.integrate_square()
 
-        assert abs(integral) < 1e-6  # not necessarily true for all wavefns
-        assert abs(integral_square - 1.00) < 1e-2  # true for all wavefns
+        self.assertAlmostEqual(integral, 0, delta=1e-6)  # not necessarily true for all wavefns
+        self.assertAlmostEqual(integral_square, 1.00, delta=1e-2)  # true for all wavefns
         print(integral, integral_square)
 
-    def test_density(self) -> None:
+    def test_density(self):
         """Does the volume occupied by the combined electron density integrate
         to the correct value?
         """
@@ -60,10 +59,10 @@ class VolumeTest:
         density = volume.electrondensity(data_sp, vol, frontierorbs)
         integral = density.integrate()
 
-        assert abs(integral - 8.00) < 1e-2
+        self.assertTrue(abs(integral - 8.00) < 1e-2)
         print("Combined Density of 4 Frontier orbitals=", integral)
 
-    def test_cube(self) -> None:
+    def test_cube(self):
         """Does the cube file written out for electron density on a Cartesian grid match
         expected values?
         """
@@ -74,7 +73,7 @@ class VolumeTest:
         # First six rows are information about the coordinates of the grid and comments.
         tmp = []
 
-        with open(Path(__file__).resolve().parent / "water_mp2.cube") as f:
+        with open(f"{os.path.dirname(os.path.realpath(__file__))}/water_mp2.cube") as f:
             lines = f.readlines()
             for line in lines[6 : len(lines)]:
                 tmp.extend(line.split())
@@ -91,9 +90,9 @@ class VolumeTest:
 
         assert_allclose(density.data, refcube, atol=0.5, rtol=0.1)
 
-    def test_roundtrip_cube(self) -> None:
+    def test_roundtrip_cube(self):
         """Write a cube file and then read it back. Check if the volume object contains
-        identical information on each grid point"""
+           identical information on each grid point"""
 
         data, logfile = getdatafile(Psi4, "basicPsi4-1.2.1", ["water_mp2.out"])
         vol = volume.Volume((-1, -1, -1), (1, 1, 1), (0.4, 0.4, 0.4))
@@ -103,8 +102,3 @@ class VolumeTest:
         density_recovered = volume.read_from_cube("coarsewater.cube")
 
         assert_allclose(density.data, density_recovered.data, rtol=0.05)
-
-    def test_zip_cube(self) -> None:
-        """Check we can read from a zipped file."""
-        data = volume.read_from_cube(Path(__file__).resolve().parent / "co.cube.zip")
-        assert len(data.data) > 0

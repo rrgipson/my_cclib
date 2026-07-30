@@ -1,4 +1,6 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2018, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -6,21 +8,12 @@
 """Calculation of electric multipole moments based on data parsed by cclib."""
 
 import sys
-from typing import TYPE_CHECKING
-
-from cclib.method.calculationmethod import Method
-from cclib.parser.utils import convertor
+from collections.abc import Iterable
 
 import numpy
 
-
-if TYPE_CHECKING:
-    from cclib.parser.data import ccData
-
-if sys.version_info.minor >= 9:
-    from collections.abc import Iterable
-else:
-    from collections.abc import Iterable
+from cclib.parser.utils import convertor
+from cclib.method.calculationmethod import Method
 
 
 class Moments(Method):
@@ -29,17 +22,16 @@ class Moments(Method):
     The obtained results are stored in `results` attribute as a
     dictionary whose keys denote the used charge population scheme.
     """
-
-    def __init__(self, data: "ccData") -> None:
+    def __init__(self, data):
         super().__init__(data)
-        self.required_attrs = ("atomcoords", "atomcharges")
+        self.required_attrs = ('atomcoords', 'atomcharges')
         self.results = {}
 
-    def __str__(self) -> str:
+    def __str__(self):
         """Returns a string representation of the object."""
         return f"Multipole moments of {self.data}"
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         """Returns a representation of the object."""
         return f'Moments("{self.data}")'
 
@@ -47,38 +39,33 @@ class Moments(Method):
         """Calculate the dipole moment from the given atomic charges
         and their coordinates with respect to the origin.
         """
-        transl_coords_au = convertor(coords - origin, "Angstrom", "bohr")
+        transl_coords_au = convertor(coords - origin, 'Angstrom', 'bohr')
         dipole = numpy.dot(charges, transl_coords_au)
 
-        return convertor(dipole, "ebohr", "Debye")
+        return convertor(dipole, 'ebohr', 'Debye')
 
     def _calculate_quadrupole(self, charges, coords, origin):
         """Calculate the traceless quadrupole moment from the given
         atomic charges and their coordinates with respect to the origin.
         """
-        transl_coords_au = convertor(coords - origin, "Angstrom", "bohr")
+        transl_coords_au = convertor(coords - origin, 'Angstrom', 'bohr')
 
         delta = numpy.eye(3)
         Q = numpy.zeros([3, 3])
         for i in range(3):
             for j in range(3):
                 for q, r in zip(charges, transl_coords_au):
-                    Q[i, j] += (
-                        1 / 2 * q * (3 * r[i] * r[j] - numpy.linalg.norm(r) ** 2 * delta[i, j])
-                    )
+                    Q[i,j] += 1/2 * q * (3 * r[i] * r[j] - \
+                              numpy.linalg.norm(r)**2 * delta[i,j])
 
         triu_idxs = numpy.triu_indices_from(Q)
         raveled_idxs = numpy.ravel_multi_index(triu_idxs, Q.shape)
         quadrupole = numpy.take(Q.flatten(), raveled_idxs)
 
-        return convertor(quadrupole, "ebohr2", "Buckingham")
+        return convertor(quadrupole, 'ebohr2', 'Buckingham')
 
-    def calculate(
-        self,
-        origin: str | Iterable[float] = "nuccharge",
-        population: str = "mulliken",
-        masses: numpy.ndarray | Iterable[float] | None = None,
-    ) -> list[numpy.ndarray]:
+    def calculate(self, origin='nuccharge', population='mulliken',
+                  masses=None):
         """Calculate electric dipole and quadrupole moments using parsed
         partial atomic charges.
 
@@ -122,23 +109,23 @@ class Moments(Method):
         try:
             charges = self.data.atomcharges[population]
         except KeyError as e:
-            msg = "charges coming from requested population analysis scheme are not parsed"
+            msg = ("charges coming from requested population analysis"
+                   "scheme are not parsed")
             raise ValueError(msg, e)
 
         if isinstance(origin, Iterable) and not isinstance(origin, str):
             origin_pos = numpy.asarray(origin)
-        elif origin == "nuccharge":
+        elif origin == 'nuccharge':
             origin_pos = numpy.average(coords, weights=self.data.atomnos, axis=0)
-        elif origin == "mass":
+        elif origin == 'mass':
             if masses:
                 atommasses = numpy.asarray(masses)
             else:
                 try:
                     atommasses = self.data.atommasses
                 except AttributeError as e:
-                    msg = (
-                        "atomic masses were not parsed, consider provide 'masses' argument instead"
-                    )
+                    msg = ("atomic masses were not parsed, consider provide "
+                           "'masses' argument instead")
                     raise ValueError(msg, e)
             origin_pos = numpy.average(coords, weights=atommasses, axis=0)
         else:

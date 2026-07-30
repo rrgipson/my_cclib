@@ -1,23 +1,24 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2017, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Test the CDA method in cclib"""
 
-import logging
 import sys
-
+import logging
+import unittest
 
 sys.path.insert(1, "..")
 
+from ..test_data import getdatafile
 from cclib.method import CDA
 from cclib.parser import Gaussian
 
-from ..test_data import getdatafile
 
-
-def main(log: bool = True) -> CDA:
+def main(log=True):
     data1, logfile1 = getdatafile(Gaussian, "CDA", ["BH3CO-sp.log"])
     data2, logfile2 = getdatafile(Gaussian, "CDA", ["BH3.log"])
     data3, logfile3 = getdatafile(Gaussian, "CDA", ["CO.log"])
@@ -29,7 +30,7 @@ def main(log: bool = True) -> CDA:
     return fa
 
 
-def printResults() -> None:
+def printResults():
     fa = main()
 
     print("       d       b       r")
@@ -37,6 +38,7 @@ def printResults() -> None:
 
     spin = 0
     for i in range(len(fa.donations[0])):
+
         print(
             f"{int(i):2}: {fa.donations[spin][i]:7.3f} {fa.bdonations[spin][i]:7.3f} {fa.repulsions[spin][i]:7.3f}"
         )
@@ -48,8 +50,9 @@ def printResults() -> None:
     print("\n\n")
 
 
-class CDATest:
-    def runTest(self) -> None:
+class CDATest(unittest.TestCase):
+
+    def runTest(self):
         """Testing CDA results against Frenking's code"""
         fa = main(log=False)
 
@@ -57,10 +60,11 @@ class CDATest:
         bdonation = fa.bdonations[0].sum()
         repulsion = fa.repulsions[0].sum()
 
-        assert round(abs(donation - 0.181), 3) == 0
-        assert round(abs(bdonation - 0.471), 3) == 0
-        assert round(abs(repulsion - -0.334), 3) == 0
+        self.assertAlmostEqual(donation, 0.181, 3)
+        self.assertAlmostEqual(bdonation, 0.471, 3)
+        self.assertAlmostEqual(repulsion, -0.334, 3)
 
 
 if __name__ == "__main__":
     printResults()
+    unittest.TextTestRunner(verbosity=2).run(unittest.makeSuite(CDATest))

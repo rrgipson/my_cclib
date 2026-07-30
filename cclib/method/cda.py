@@ -1,4 +1,6 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2017, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -7,31 +9,32 @@
 
 import random
 
-from cclib.method.fragments import FragmentAnalysis
-
 import numpy
+
+from cclib.method.fragments import FragmentAnalysis
 
 
 class CDA(FragmentAnalysis):
     """Charge Decomposition Analysis (CDA)"""
 
-    def __init__(self, *args) -> None:
+    def __init__(self, *args):
         super().__init__(logname="CDA", *args)
 
-    def __str__(self) -> str:
+    def __str__(self):
         """Return a string representation of the object."""
         return f"CDA of {self.data}"
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         """Return a representation of the object."""
         return f'CDA("{self.data}")'
 
-    def calculate(self, fragments, cupdate: float = 0.05) -> bool:
+    def calculate(self, fragments, cupdate=0.05):
         """Perform the charge decomposition analysis.
 
         Inputs:
             fragments - list of ccData data objects
         """
+
 
         retval = super().calculate(fragments, cupdate)
         if not retval:
@@ -60,7 +63,9 @@ class CDA(FragmentAnalysis):
         # Begin the actual method.
         step = 0
         for spin in range(len(self.mocoeffs)):
+
             size = len(self.mocoeffs[spin])
+            homo = self.data.homos[spin]
 
             if len(fragments[0].homos) == 2:
                 homoa = fragments[0].homos[spin]
@@ -87,46 +92,27 @@ class CDA(FragmentAnalysis):
             residuals.append(numpy.zeros(size, "d"))
 
             for i in range(self.data.homos[spin] + 1):
+
                 # Calculate donation for each MO.
                 for k in range(0, homoa + 1):
                     for n in range(offset + homob + 1, self.data.nbasis):
-                        donations[spin][i] += (
-                            2
-                            * occs
-                            * self.mocoeffs[spin][i, k]
-                            * self.mocoeffs[spin][i, n]
-                            * fooverlaps[k][n]
-                        )
+                        donations[spin][i] += 2 * occs * self.mocoeffs[spin][i,k] \
+                                                * self.mocoeffs[spin][i,n] * fooverlaps[k][n]
 
-                for l in range(offset, offset + homob + 1):  # noqa: E741
+                for l in range(offset, offset + homob + 1):
                     for m in range(homoa + 1, offset):
-                        bdonations[spin][i] += (
-                            2
-                            * occs
-                            * self.mocoeffs[spin][i, l]
-                            * self.mocoeffs[spin][i, m]
-                            * fooverlaps[l][m]
-                        )
+                        bdonations[spin][i] += 2 * occs * self.mocoeffs[spin][i,l] \
+                                                * self.mocoeffs[spin][i,m] * fooverlaps[l][m]
 
                 for k in range(0, homoa + 1):
-                    for m in range(offset, offset + homob + 1):
-                        repulsions[spin][i] += (
-                            2
-                            * occs
-                            * self.mocoeffs[spin][i, k]
-                            * self.mocoeffs[spin][i, m]
-                            * fooverlaps[k][m]
-                        )
+                    for m in range(offset, offset+homob + 1):
+                        repulsions[spin][i] += 2 * occs * self.mocoeffs[spin][i,k] \
+                                                * self.mocoeffs[spin][i, m] * fooverlaps[k][m]
 
                 for m in range(homoa + 1, offset):
                     for n in range(offset + homob + 1, self.data.nbasis):
-                        residuals[spin][i] += (
-                            2
-                            * occs
-                            * self.mocoeffs[spin][i, m]
-                            * self.mocoeffs[spin][i, n]
-                            * fooverlaps[m][n]
-                        )
+                        residuals[spin][i] += 2 * occs * self.mocoeffs[spin][i,m] \
+                                                * self.mocoeffs[spin][i, n] * fooverlaps[m][n]
 
                 step += 1
                 if self.progress and random.random() < cupdate:

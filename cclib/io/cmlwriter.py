@@ -1,4 +1,6 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2017, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -6,15 +8,9 @@
 """A writer for chemical markup language (CML) files."""
 
 import xml.etree.ElementTree as ET
-from collections.abc import Mapping
-from typing import TYPE_CHECKING
 
 from cclib.io import filewriter
 from cclib.parser.utils import find_package
-
-
-if TYPE_CHECKING:
-    from cclib.parser.data import ccData
 
 _has_openbabel = find_package("openbabel")
 
@@ -22,7 +18,7 @@ _has_openbabel = find_package("openbabel")
 class CML(filewriter.Writer):
     """A writer for chemical markup language (CML) files."""
 
-    def __init__(self, ccdata: "ccData", *args, **kwargs) -> None:
+    def __init__(self, ccdata, *args, **kwargs):
         """Initialize the CML writer object.
 
         Inputs:
@@ -30,25 +26,25 @@ class CML(filewriter.Writer):
         """
         super().__init__(ccdata, *args, **kwargs)
 
-    def generate_repr(self) -> str:
+    def generate_repr(self):
         """Generate the CML representation of the logfile data."""
 
         # Create the base molecule.
-        molecule = ET.Element("molecule")
+        molecule = ET.Element('molecule')
         d = {
             # Write the namespace directly.
-            "xmlns": "http://www.xml-cml.org/schema"
+            'xmlns': 'http://www.xml-cml.org/schema',
         }
         if self.jobfilename is not None:
-            d["id"] = self.jobfilename
+            d['id'] = self.jobfilename
         _set_attrs(molecule, d)
 
         # Form the listing of all the atoms present.
-        atomArray = ET.SubElement(molecule, "atomArray")
-        if hasattr(self.ccdata, "atomcoords") and hasattr(self.ccdata, "atomnos"):
+        atomArray = ET.SubElement(molecule, 'atomArray')
+        if hasattr(self.ccdata, 'atomcoords') and hasattr(self.ccdata, 'atomnos'):
             elements = [self.pt.element[Z] for Z in self.ccdata.atomnos]
             for atomid in range(self.ccdata.natom):
-                atom = ET.SubElement(atomArray, "atom")
+                atom = ET.SubElement(atomArray, 'atom')
                 x, y, z = self.ccdata.atomcoords[-1][atomid].tolist()
                 d = {
                     "id": f"a{atomid + 1}",
@@ -60,7 +56,7 @@ class CML(filewriter.Writer):
                 _set_attrs(atom, d)
 
         # Form the listing of all the bonds present.
-        bondArray = ET.SubElement(molecule, "bondArray")
+        bondArray = ET.SubElement(molecule, 'bondArray')
         if _has_openbabel:
             for bc in self.bond_connectivities:
                 bond = ET.SubElement(bondArray, "bond")
@@ -72,16 +68,16 @@ class CML(filewriter.Writer):
         return _tostring(molecule)
 
 
-def _set_attrs(element: ET.Element, d: Mapping[str, str]) -> None:
+def _set_attrs(element, d):
     """Set all the key-value pairs from a dictionary as element
     attributes.
     """
-    for k, v in d.items():
+    for (k, v) in d.items():
         element.set(k, v)
     return
 
 
-def _indent(elem: ET.Element, level: int = 0) -> None:
+def _indent(elem, level=0):
     """An in-place pretty-print indenter for XML."""
     i = f"\n{level * '  '}"
     if len(elem):
@@ -90,7 +86,7 @@ def _indent(elem: ET.Element, level: int = 0) -> None:
         if not elem.tail or not elem.tail.strip():
             elem.tail = i
         for elem in elem:
-            _indent(elem, level + 1)
+            _indent(elem, level+1)
         if not elem.tail or not elem.tail.strip():
             elem.tail = i
     else:
@@ -98,21 +94,18 @@ def _indent(elem: ET.Element, level: int = 0) -> None:
             elem.tail = i
 
 
-def _tostring(
-    element: ET.Element, xml_declaration: bool = True, encoding: str = "utf-8", method: str = "xml"
-) -> str:
+def _tostring(element, xml_declaration=True, encoding='utf-8', method='xml'):
     """A reimplementation of tostring() found in ElementTree."""
-
     class dummy:
         pass
-
     data = []
     file = dummy()
     file.write = data.append
-    ET.ElementTree(element).write(
-        file, xml_declaration=xml_declaration, encoding=encoding, method=method
-    )
-    return b"".join(data).decode(encoding)
+    ET.ElementTree(element).write(file,
+                                  xml_declaration=xml_declaration,
+                                  encoding=encoding,
+                                  method=method)
+    return b''.join(data).decode(encoding)
 
 
 del find_package

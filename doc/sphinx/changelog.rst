@@ -4,105 +4,6 @@
 Changelog
 =========
 
-Changes in cclib-1.8.1
-----------------------
-
-**Features**
-
-    * New parser: xTB (Andrew S. Rosen, Omri Abarbanel, #789, #1129, #1296)
-    * Support parsing number of CPUs and memory used for Gaussian, ORCA, and Turbomole (#1271, #1277)
-    * New attributes for the NBO parser (Weronika Zak, #1012, #1251)
-    * Remove obsolete Qt4Progress (#1285, #1315)
-    * Only keep the Sphinx version of the changelog (#1254, #1352)
-    * Stop using Read the Docs (#1267, #1312)
-    * Don't require specific versions of PySCF and Biopython optional dependencies (#1344)
-
-**Bugfixes**
-
-    * Fix parsing aooverlaps from GAMESS (#1278)
-    * Fix ORCA excited states sometimes not being printed identically across sections (#1276)
-    * Make writing ASE objects more robust to missing cclib attributes (Andrew S. Rosen, #1299, #1300)
-    * Fix writing freeenergy to ASE objects (Andrew S. Rosen, #1319, #1320)
-
-**Developer facing changes**
-
-    * Completely migrate from ``unittest`` to ``pytest`` (#648, #649, #766, #1309, #1346)
-    * Apply and enforce ruff for code formatting using pre-commit (Anselm Hahn, #536, #1122, #1303, #1306, #1307, #1310)
-    * Migrate to ``pyproject.toml`` from ``setup.py`` for package installation (#833, #1180, #1311, #1327, #1328, #1382)
-    * Handle nested dictionaries in setting attributes (Weronika Zak, #1257, #1258)
-    * Update developer guidelines (#1355)
-    * Drop 3.7 and add 3.11 to test suite (#1305)
-    * Automate versioning and pushing releases to PyPI (#1363, #1373, #1374)
-    * Add Dependabot for keeping GitHub Actions up to date (#1329, #1337)
-    * Update copyright years to 2024 with pre-commit enforcement (#1349)
-    * Remove obsolete UTF-8 pragmas in Python files (#1350)
-    * Fix warning about missing file for a Q-Chem regression test (#1338)
-    * Continuous integration fixes for pyquante2 (#997, #1263, #1301, #1304)
-
-Changes in cclib-1.8
---------------------
-
-**Features**
-
-    * [GSoC 2023] New language bindings: Julia (Victor Hugo Cano Gil, #1053, https://github.com/cclib/Cclib.jl)
-    * [GSoC 2023] New parser: NBO (Weronika Zak, #1230, #1233, #1244)
-    * [GSoC 2023] New parser: GAMESS *.dat (Weronika Zak, #1208, #1214, #1229)
-    * New attribute: nmrcouplingtensors for NMR spin-spin couplings, initially from ORCA (#125, #1191)
-    * New attribute: rotconsts for rotational constants, initially from Gaussian (Mark Payne, #1054)
-    * New method: compute CM5 charges (Sai Murali Karthik Putcha, #676, #852, #1136)
-    * Support parsing atomcoords for more DALTON calculation types (#641, #1237)
-    * Be less restrictive in parsed data attributes required for Open Babel bridge (#641, #1236)
-    * Support parsing implicit solvation parameters from Gaussian, ORCA, QChem, and Turbomole (#1171, #1217, #1232)
-    * Support parsing excited state method from Gaussian, ORCA, and Turbomole (#1171, #1219)
-    * Support parsing post-HF excited states from ORCA (#1168)
-    * Support parsing Hessian from DALTON, GAMESS, NWChem, and Psi4 (#1199, #1200, #1201, #1202)
-    * Support parsing Psi4 1.7 (Dustin Wheeler, #1185, #1210)
-    * Support writing vibrational frequency attributes to MOLDEN (#1127, #1132)
-    * Support writing natural orbitals instead of canonical MOs to MOLDEN (#948)
-    * Support parsing Hirshfeld and CM5 charges from Gaussian, ORCA, and QChem (#1137)
-    * Support parsing CCSD(T) energies from ORCA and Psi4 (#1194, #1195)
-    * Support parsing NWChem 7.0 (#1131, #1133, #1188)
-    * Support parsing atommasses and vibdisps from NWChem (#1131, #1198)
-    * Support parsing Hartree-Fock and semiempirical excited states from ORCA (#1187, #1189)
-    * Support parsing etsyms from ORCA (#1166)
-    * Support parsing timing information from Gaussian, ORCA, and Turbomole (#1167)
-    * Support parsing methods and basis set from ORCA (#1170)
-    * Support parsing excited state using in geometry optimization from Gaussian (#1149, #1151)
-    * Support parsing etmagdips from Turbomole (#1139)
-
-**Bugfixes**
-
-    * Fix edge case of XYZ files being interpreted as Turbomole outputs (#1207, #1238)
-    * Fix units for calculating nuclear repulsion energy (migatt, #1241, #1242, #1243)
-    * Fix infrastructure for reading CJSON (#1222, #1234)
-    * Fix edge cases when parsing certain Turbomole outputs (#1174, #1197, #1220, #1222)
-    * Fix precision in parsing Hirshfeld charges from ORCA (#1209, #1213)
-    * Fix parsing Hessian from formatted checkpoint files (#1204)
-    * Fix parsing etoscs for ORCA calculations with spin-orbit coupling (#1172)
-    * Fix parsing mocoeffs with non-standard population printing from Gaussian (#1162, #1169)
-    * Fix possible infinite loop in DDEC6 method (#1165)
-    * Improve checking of mpenergies in Gaussian (#1163, #1164)
-    * Fix sign of atomcharges in NWChem (#1156)
-    * Update core developers in documentation (#1144)
-
-**Developer facing changes**
-
-    * Update copyright years to 2023 (#1245, #1246)
-    * Be more flexible in extend_attribute (Weronika Zak, #1224, #1228)
-    * Fix automatically updating both cclib.github.io and cclib.readthedocs.io and testing docs build (#709, #1154, #1158, #1203, #1216, #1223, #1227)
-    * Initial Black and isort configuration (#1211)
-    * Support development using Dev Containers (#1212)
-    * Use raw string in regular expression (#1206)
-    * More comprehensive testing of coupled cluster energies (#1196)
-    * Continue migration from unittest to pytest (#1181, #1182, #1183, #1184, #1186)
-    * Add type annotations to most functions and methods (#1179)
-    * More idiomatic checking of None (#991, #1178)
-    * Fix installation of pyquante2 in cclib environments (#1176)
-    * Test Python 3.9 and 3.10 (#1175)
-    * Increase minimum supported Python version to 3.7 (#1157, #1159, #1160, #1161)
-    * Modularize atomcharges testing (#1152)
-    * Update code coverage Action version (#1095)
-
 Changes in cclib-1.7.2
 ----------------------
 
@@ -143,8 +44,8 @@ Changes in cclib-1.7.1
 
 **Bugfixes**
 
-* Improved parsing and testing enthalpy and freeenergy (Felipe S. S. Schneider)
-* Fixed parsing ONIOM output for Gaussian (Elliot Farrar)
+* Improved parsing and testing enthalpy and freeenergy (Felipe Schneider)
+* Fixed parsing ONION output for Gaussian (Elliot Farrar)
 * Fixed parsing of GAMESS logfiles with more than 100 SCF iterations (simonaxelrod)
 * Fixed parsing of very long (10K+) ORCA logfiles (Alex Maldonado)
 * Fixed parsing of Turbomole outputs that don't compute SCF energies (Oliver Lee)
@@ -270,7 +171,7 @@ Changes in cclib-1.6
 
 * New parser: cclib can now parse Molcas files (Kunal Sharma)
 * New parser: cclib can now parse Turbomole files (Christopher Rowley, Kunal Sharma)
-* New script: ccframe writes data table files from logfiles (Felipe S. S. Schneider)
+* New script: ccframe writes data table files from logfiles (Felipe Schneider)
 * New method: stoichiometry builds the chemical formula of a system (Jaime Rodríguez-Guerra)
 * Support package version in metadata for most parsers
 * Support time attribute and BOMD output in Gaussian, NWChem, ORCA and QChem
@@ -482,7 +383,7 @@ Changes in cclib-1.2
 * Ignore Unicode errors in logfiles
 * Handle Gaussian jobs with terse output (basis set count not reported)
 * Handle Gaussian jobs using IndoGuess (Scott McKechnie)
-* Handle Gaussian file with irregular ONIOM gradients (Tamilmani S)
+* Handle Gaussian file with irregular ONION gradients (Tamilmani S)
 * Handle ORCA file with SCF convergence issue (Melchor Sanchez)
 * Handle Gaussian file with problematic IRC output (Clyde Fare)
 * Handle ORCA file with AM1 output (Julien Idé)

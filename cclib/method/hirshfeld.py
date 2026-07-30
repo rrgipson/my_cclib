@@ -1,22 +1,25 @@
-# Copyright (c) 2025-2026, the cclib development team
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2020, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Calculation of Hirshfeld charges based on data parsed by cclib."""
-
-import logging
-from typing import TYPE_CHECKING, Optional
-
-from cclib.method.stockholder import Stockholder
-
+import copy
+import random
 import numpy
+import logging
+import math
+import os
+import sys
 
+from cclib.method.calculationmethod import Method
+from cclib.method.stockholder import Stockholder
+from cclib.method.volume import electrondensity_spin
+from cclib.parser.utils import find_package
 
-if TYPE_CHECKING:
-    from cclib.method.volume import Volume
-    from cclib.parser.data import ccData
-    from cclib.progress import Progress
+from typing import List
 
 
 class MissingInputError(Exception):
@@ -35,46 +38,46 @@ class Hirshfeld(Stockholder):
 
     def __init__(
         self,
-        data: "ccData",
-        volume: "Volume",
-        proatom_path: str,
-        progress: Optional["Progress"] = None,
-        loglevel: int = logging.INFO,
-        logname: str = "Log",
-    ) -> None:
-        """Initialize Hirshfeld object.
-        Inputs are:
-            data -- ccData object that describe target molecule.
-            volume -- Volume object that describe target Cartesian grid.
-            proatom_path -- path to proatom densities
-            (directory containing atoms.h5 in horton or c2_001_001_000_400_075.txt in chargemol)
+        data,
+        volume,
+        proatom_path=None,
+        progress=None,
+        loglevel=logging.INFO,
+        logname="Log",
+    ):
+        """ Initialize Hirshfeld object.
+            Inputs are:
+                data -- ccData object that describe target molecule.
+                volume -- Volume object that describe target Cartesian grid.
+                proatom_path -- path to proatom densities
+                (directory containing atoms.h5 in horton or c2_001_001_000_400_075.txt in chargemol)
         """
         super().__init__(data, volume, proatom_path, progress, loglevel, logname)
 
-    def __str__(self) -> str:
+    def __str__(self):
         """Return a string representation of the object."""
         return f"Hirshfeld charges of {self.data}"
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         """Return a representation of the object."""
         return f"Hirshfeld({self.data})"
 
-    def _check_required_attributes(self) -> None:
+    def _check_required_attributes(self):
         super()._check_required_attributes()
 
     def _cartesian_dist(self, pt1, pt2):
         """Small utility function that calculates Euclidian distance between two points.
-
+        
         Arguments pt1 and pt2 are NumPy arrays representing points in Cartesian coordinates.
         """
         return numpy.sqrt(numpy.dot(pt1 - pt2, pt1 - pt2))
 
     def _read_proatom(
-        self, directory: str, atom_num: int, charge: float
-    ) -> tuple[numpy.ndarray, numpy.ndarray]:
+        self, directory, atom_num, charge  # type = str  # type = int  # type = float
+    ):
         return super()._read_proatom(directory, atom_num, charge)
 
-    def calculate(self) -> bool:
+    def calculate(self):
         """Calculate Hirshfeld charges."""
         super().calculate()
 
@@ -114,7 +117,7 @@ class Hirshfeld(Stockholder):
         # radial distance from center of atom chi.
         stockholder_bigW = numpy.sum(stockholder_w, axis=0)
 
-        self.fragcharges = numpy.zeros(self.data.natom)
+        self.fragcharges = numpy.zeros((self.data.natom))
         self.logger.info("Creating fragcharges: array[1]")
 
         for atomi in range(self.data.natom):

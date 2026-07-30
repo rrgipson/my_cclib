@@ -1,4 +1,3 @@
-.PHONY: default
 default: sphinx
 
 .PHONY: sphinx
