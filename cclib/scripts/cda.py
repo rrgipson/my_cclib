@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 #
-# Copyright (c) 2017, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -13,7 +12,7 @@ from cclib.io import ccread
 from cclib.method import CDA
 
 
-def main():
+def main() -> None:
     parser = ArgumentParser()
     parser.add_argument("file1", help="logfile containing the supermolecule")
     parser.add_argument("file2", help="logfile containing the first fragment")
@@ -30,7 +29,6 @@ def main():
     retval = fa.calculate([data2, data3])
 
     if retval:
-
         print(f"Charge decomposition analysis of {args.file1}\n")
 
         if len(data1.homos) == 2:
@@ -41,20 +39,17 @@ def main():
         print("-------------------------------------")
 
         for spin in range(len(data1.homos)):
-
             if spin == 1:
                 print("\nBETA SPIN:")
                 print("==========")
 
             for i in range(len(fa.donations[spin])):
-
                 print(
                     f"{int(i + 1):4}: {fa.donations[spin][i]:7.3f} {fa.bdonations[spin][i]:7.3f} {fa.repulsions[spin][i]:7.3f} {fa.residuals[spin][i]:7.3f}"
                 )
 
                 if i == data1.homos[spin]:
                     print("------ HOMO - LUMO gap ------")
-                    
 
             print("-------------------------------------")
             print(
@@ -62,5 +57,5 @@ def main():
             )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

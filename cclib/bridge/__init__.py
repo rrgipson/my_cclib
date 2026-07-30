@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2020, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Facilities for moving parsed data to other cheminformatic libraries."""
 
+# ruff: noqa: F401
 from cclib.parser.utils import find_package
+
 
 if find_package("Bio"):
     from cclib.bridge.cclib2biopython import makebiopython
@@ -29,4 +29,8 @@ if find_package("iodata"):
 
 if find_package("pyscf"):
     from cclib.bridge.cclib2pyscf import makepyscf, makepyscf_mos
+
+if find_package("chemfiles"):
+    from cclib.bridge.cclib2chemfiles import makechemfiles
+
 del find_package

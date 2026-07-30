@@ -1,19 +1,22 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2017, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Generic file reader and related tools"""
 
+import typing
 from abc import ABC, abstractmethod
+
+from cclib.parser.logfilewrapper import FileWrapper
 
 
 class Reader(ABC):
     """Abstract class for reader objects."""
 
-    def __init__(self, source, *args, **kwargs):
+    def __init__(
+        self, source: str | typing.IO | FileWrapper | list[str | typing.IO], *args, **kwargs
+    ) -> None:
         """Initialize the Reader object.
 
         This should be called by a subclass in its own __init__ method.
@@ -21,19 +24,15 @@ class Reader(ABC):
         Inputs:
           source - A single filename, stream [TODO], or list of filenames/streams [TODO].
         """
-        if isinstance(source, str):
-            self.filename = source
-        else:
-            raise ValueError
+        if not isinstance(source, FileWrapper):
+            source = FileWrapper(source)
 
-    def parse(self):
+        self.inputfile = source
+
+    def parse(self) -> None:
         """Read the raw contents of the source into the Reader."""
-        # TODO This cannot currently handle streams.
-        with open(self.filename) as handle:
-            self.filecontents = handle.read()
-
-        return None
+        self.filecontents = self.inputfile.read()
 
     @abstractmethod
-    def generate_repr(self):
+    def generate_repr(self) -> None:
         """Convert the raw contents of the source into the internal representation."""

@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2019, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -8,22 +6,22 @@
 """Test single point logfiles in cclib."""
 
 import datetime
-import os
-import unittest
+from typing import TYPE_CHECKING
+
+from cclib.parser import utils
 
 import numpy
 import packaging
-
+import pytest
 from common import get_minimum_carbon_separation
-
-from skip import skipForParser
-from skip import skipForLogfile
+from skip import skipForLogfile, skipForParser
 
 
-__filedir__ = os.path.realpath(os.path.dirname(__file__))
+if TYPE_CHECKING:
+    from cclib.parser.data import ccData
 
 
-class GenericSPTest(unittest.TestCase):
+class GenericSPTest:
     """Generic restricted single point unittest"""
 
     # Molecular mass of DVB in mD, and expected precision.
@@ -31,15 +29,16 @@ class GenericSPTest(unittest.TestCase):
     mass_precision = 0.10
 
     # In STO-3G, H has 1, C has 5 (1 S and 4 SP).
-    nbasisdict = {1:1, 6:5}
+    nbasisdict = {1: 1, 6: 5}
 
-    # Approximate B3LYP energy of dvb after SCF in STO-3G.
-    b3lyp_energy = -10365
+    # Approximate B3LYP energy of dvb after SCF in STO-3G (Gaussian 16).
+    scfenergy = -382.308266602
+    scfenergy_delta = 3.0e-1
 
     # Approximate energy of the innermost molecular orbital of DVB with
-    # B3LYP/STO-3G (from Q-Chem 5.4).
-    b3lyp_moenergy = -272.60365543
-    b3lyp_moenergy_delta = 7.55e-2
+    # B3LYP/STO-3G (from Q-Chem 5.4 fchk).
+    moenergy = -10.0179353
+    moenergy_delta = 3.0e-3
 
     # Overlap first two atomic orbitals.
     overlap01 = 0.24
@@ -47,428 +46,608 @@ class GenericSPTest(unittest.TestCase):
     # Generally, one criteria for SCF energy convergence.
     num_scf_criteria = 1
 
-    def testnatom(self):
-        """Is the number of atoms equal to 20?"""
-        self.assertEqual(self.data.natom, 20)
+    # taken from Gaussian16/dvb_sp.out, in GHz
+    rotconsts = [4.6266363, 0.6849065, 0.5965900]
 
-    def testatomnos(self):
+    def testnatom(self, data: "ccData") -> None:
+        """Is the number of atoms equal to 20?"""
+        assert data.natom == 20
+
+    @skipForParser("NBO", "attribute not implemented in this version")
+    def testatomnos(self, data: "ccData") -> None:
         """Are the atomnos correct?"""
 
         # The nuclear charges should be integer values in a NumPy array.
-        self.assertTrue(numpy.alltrue([numpy.issubdtype(atomno, numpy.signedinteger)
-                                       for atomno in self.data.atomnos]))
-        self.assertEqual(self.data.atomnos.dtype.char, 'i')
+        assert numpy.all([numpy.issubdtype(atomno, numpy.signedinteger) for atomno in data.atomnos])
+        assert data.atomnos.dtype.char == "i"
 
-        self.assertEqual(self.data.atomnos.shape, (20,) )
-        self.assertEqual(sum(self.data.atomnos == 6) + sum(self.data.atomnos == 1), 20)
+        assert data.atomnos.shape == (20,)
+        assert sum(data.atomnos == 6) + sum(data.atomnos == 1) == 20
 
-    @skipForParser('DALTON', 'DALTON has a very low accuracy for the printed values of all populations (2 decimals rounded in a weird way), so let it slide for now')
-    @skipForParser('FChk', 'The parser is still being developed so we skip this test')
-    @skipForLogfile('Jaguar/basicJaguar7', 'We did not print the atomic partial charges in the unit tests for this version')
-    @skipForLogfile('Molpro/basicMolpro2006', "These tests were run a long time ago and since we don't have access to Molpro 2006 anymore, we can skip this test (it is tested in 2012)")
-    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
-    def testatomcharges(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser(
+        "DALTON",
+        "DALTON has a very low accuracy for the printed values of all populations (2 decimals rounded in a weird way), so let it slide for now",
+    )
+    @skipForParser("FChk", "The parser is still being developed so we skip this test")
+    @skipForParser("GAMESSDAT", "We are not going to implement atom charges in this version.")
+    @skipForLogfile(
+        "Jaguar/basicJaguar7",
+        "We did not print the atomic partial charges in the unit tests for this version",
+    )
+    @skipForLogfile(
+        "Molpro/basicMolpro2006",
+        "These tests were run a long time ago and since we don't have access to Molpro 2006 anymore, we can skip this test (it is tested in 2012)",
+    )
+    @skipForParser("Serenity", "not implemented yet")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    def testatomcharges(self, data: "ccData") -> None:
         """Are atomic charges consistent with natom?"""
-        for atomcharge_type in self.data.atomcharges:
-            charges = self.data.atomcharges[atomcharge_type]
-            natom = self.data.natom
-            self.assertEqual(
-                len(charges),
-                natom,
-                msg=f"len(atomcharges['{atomcharge_type}']) = {len(charges)}, natom = {natom}"
+        for atomcharge_type in data.atomcharges:
+            charges = data.atomcharges[atomcharge_type]
+            natom = data.natom
+            assert len(charges) == natom, (
+                f"len(atomcharges['{atomcharge_type}']) = {len(charges)}, natom = {natom}"
             )
 
-    @skipForParser('DALTON', 'DALTON has a very low accuracy for the printed values of all populations (2 decimals rounded in a weird way), so let it slide for now')
-    @skipForParser('FChk', 'The parser is still being developed so we skip this test')
-    @skipForLogfile('Jaguar/basicJaguar7', 'We did not print the atomic partial charges in the unit tests for this version')
-    @skipForLogfile('Molpro/basicMolpro2006', "These tests were run a long time ago and since we don't have access to Molpro 2006 anymore, we can skip this test (it is tested in 2012)")
-    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
-    def testatomcharges_mulliken(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser(
+        "DALTON",
+        "DALTON has a very low accuracy for the printed values of all populations (2 decimals rounded in a weird way), so let it slide for now",
+    )
+    @skipForLogfile("FChk/basicQChem5.2", "Q-Chem doesn't print atomic charges for fchk")
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print atomic charges for fchk")
+    @skipForParser(
+        "GAMESSDAT",
+        "We are not sure about the specific type of atom charges, it is best to skip the test for now.",
+    )
+    @skipForLogfile(
+        "Jaguar/basicJaguar7",
+        "We did not print the atomic partial charges in the unit tests for this version",
+    )
+    @skipForLogfile(
+        "Molpro/basicMolpro2006",
+        "These tests were run a long time ago and since we don't have access to Molpro 2006 anymore, we can skip this test (it is tested in 2012)",
+    )
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    def testatomcharges_mulliken(self, data: "ccData") -> None:
         """Do Mulliken atomic charges sum to zero?"""
-        charges = self.data.atomcharges["mulliken"]
-        self.assertAlmostEqual(sum(charges), 0.0, delta=0.001)
+        charges = data.atomcharges["mulliken"]
+        assert abs(sum(charges)) < 1.0e-2
 
-    @skipForParser('ADF', 'Lowdin charges not present by default')
-    @skipForParser('DALTON', 'DALTON has a very low accuracy for the printed values of all populations (2 decimals rounded in a weird way), so let it slide for now')
-    @skipForParser('FChk', 'The parser is still being developed so we skip this test')
-    @skipForParser('Gaussian', 'Lowdin charges not present by default')
-    @skipForParser('Jaguar', 'Lowdin charges not present by default')
-    @skipForParser('NWChem', 'Lowdin charges not present by default')
-    @skipForParser('Molcas', 'Lowdin charges not present by default')
-    @skipForParser('Molpro', 'Lowdin charges not present by default')
-    @skipForParser('QChem', 'Lowdin charges not present by default')
-    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
-    def testatomcharges_lowdin(self):
+    @skipForParser("ADF", "Lowdin charges not present by default")
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser(
+        "DALTON",
+        "DALTON has a very low accuracy for the printed values of all populations (2 decimals rounded in a weird way), so let it slide for now",
+    )
+    @skipForParser("FChk", "The parser is still being developed so we skip this test")
+    @skipForParser(
+        "GAMESSDAT",
+        "We are not sure about the specific type of atom charges, it is best to skip the test for now.",
+    )
+    @skipForParser("Gaussian", "Lowdin charges not present by default")
+    @skipForParser("Jaguar", "Lowdin charges not present by default")
+    @skipForParser("NWChem", "Lowdin charges not present by default")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Molcas", "Lowdin charges not present by default")
+    @skipForParser("Molpro", "Lowdin charges not present by default")
+    @skipForParser("QChem", "Lowdin charges not present by default")
+    @skipForParser("Serenity", "Lowdin charges not implemented in Serenity.")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    @skipForParser("xTB", "not implemented yet")
+    def testatomcharges_lowdin(self, data: "ccData") -> None:
         """Do Lowdin atomic charges sum to zero?"""
-        charges = self.data.atomcharges["lowdin"]
-        self.assertAlmostEqual(sum(charges), 0.0, delta=0.001)
+        charges = data.atomcharges["lowdin"]
+        assert abs(sum(charges)) < 1.0e-2
 
-    def testatomcoords(self):
+    @skipForParser("ADF", "Hirshfeld charges not implemented")
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser(
+        "DALTON",
+        "DALTON has a very low accuracy for the printed values of all populations (2 decimals rounded in a weird way), so let it slide for now",
+    )
+    @skipForParser("FChk", "The parser is still being developed so we skip this test")
+    @skipForParser("Gaussian", "Hirshfeld charges not implemented")
+    @skipForParser("GAMESS", "Hirshfeld charges not implemented")
+    @skipForParser("GAMESSUK", "Hirshfeld charges not implemented")
+    @skipForParser(
+        "GAMESSDAT",
+        "We are not sure about the specific type of atom charges, it is best to skip the test for now.",
+    )
+    @skipForParser("Jaguar", "Hirshfeld charges not implemented")
+    @skipForParser("NWChem", "Hirshfeld charges not implemented")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Molcas", "Hirshfeld charges not implemented")
+    @skipForParser("Molpro", "Hirshfeld charges not implemented")
+    @skipForParser("Psi4", "Hirshfeld charges not implemented")
+    @skipForParser("PySCF", "Hirshfeld charges not implemented")
+    @skipForParser("QChem", "Hirshfeld charges not implemented")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    @skipForParser("xTB", "Hirshfeld charges not implemented")
+    def testatomcharges_hirshfeld(self, data: "ccData") -> None:
+        """Do Hirshfeld atomic charges sum to roughly zero?"""
+        charges = data.atomcharges["hirshfeld"]
+        assert abs(sum(charges)) < 4.0e-3
+
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("xTB", "not implemented yet")
+    def testatomcoords(self, data: "ccData") -> None:
         """Are the dimensions of atomcoords 1 x natom x 3?"""
-        expected_shape = (1, self.data.natom, 3)
-        self.assertEqual(self.data.atomcoords.shape, expected_shape)
+        expected_shape = (1, data.natom, 3)
+        assert data.atomcoords.shape == expected_shape
 
-    def testatomcoords_units(self):
+    @skipForParser(
+        "GAMESSDAT", "Vectors need some calculations to transform them. Current mm value is 2.54"
+    )
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("xTB", "not implemented yet")
+    def testatomcoords_units(self, data: "ccData") -> None:
         """Are atomcoords consistent with Angstroms?"""
-        min_carbon_dist = get_minimum_carbon_separation(self.data)
+        min_carbon_dist = get_minimum_carbon_separation(data)
         dev = abs(min_carbon_dist - 1.34)
-        self.assertTrue(
-            dev < 0.03, f"Minimum carbon dist is {min_carbon_dist:.2f} (not 1.34)"
-        )
+        assert dev < 0.03, f"Minimum carbon dist is {min_carbon_dist:.2f} (not 1.34)"
 
-    @skipForParser('Molcas', 'missing mult')
-    def testcharge_and_mult(self):
+    @skipForParser("GAMESSDAT", "Neither charge nor mult exists in the files.")
+    @skipForParser("Molcas", "missing mult")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("xTB", "not implemented yet")
+    def testcharge_and_mult(self, data: "ccData") -> None:
         """Are the charge and multiplicity correct?"""
-        self.assertEqual(self.data.charge, 0)
-        self.assertEqual(self.data.mult, 1)
+        assert data.charge == 0
+        assert data.mult == 1
 
-    def testnbasis(self):
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("xTB", "not implemented yet")
+    def testnbasis(self, data: "ccData") -> None:
         """Is the number of basis set functions correct?"""
-        count = sum([self.nbasisdict[n] for n in self.data.atomnos])
-        self.assertEqual(self.data.nbasis, count)
+        count = sum([self.nbasisdict[n] for n in data.atomnos])
+        assert data.nbasis == count
 
-    @skipForParser('ADF', 'ADF parser does not extract atombasis')
-    @skipForLogfile('Jaguar/basicJaguar7', 'Data file does not contain enough information. Can we make a new one?')
-    @skipForParser('Molcas','The parser is still being developed so we skip this test')
-    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
-    def testatombasis(self):
+    @skipForParser("ADF", "ADF parser does not extract atombasis")
+    @skipForLogfile(
+        "Jaguar/basicJaguar7",
+        "Data file does not contain enough information. Can we make a new one?",
+    )
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Serenity", "not implemented yet")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    @skipForParser("xTB", "not implemented yet")
+    def testatombasis(self, data: "ccData") -> None:
         """Are the indices in atombasis the right amount and unique?"""
         all = []
-        for i, atom in enumerate(self.data.atombasis):
-            self.assertEqual(len(atom), self.nbasisdict[self.data.atomnos[i]])
+        for i, atom in enumerate(data.atombasis):
+            assert len(atom) == self.nbasisdict[data.atomnos[i]]
             all += atom
         # Test if there are as many indices as atomic orbitals.
-        self.assertEqual(len(all), self.data.nbasis)
+        assert len(all) == data.nbasis
         # Check if all are different (every orbital indexed once).
-        self.assertEqual(len(set(all)), len(all))
+        assert len(set(all)) == len(all)
 
-    @skipForParser('FChk', 'Formatted checkpoint files do not have a section for atommasses')
-    @skipForParser('GAMESS', 'atommasses not implemented yet')
-    @skipForParser('GAMESSUK', 'atommasses not implemented yet')
-    @skipForParser('Jaguar', 'atommasses not implemented yet')
-    @skipForParser('Molcas','The parser is still being developed so we skip this test')
-    @skipForParser('Molpro', 'atommasses not implemented yet')
-    @skipForParser('NWChem', 'atommasses not implemented yet')
-    @skipForLogfile('Psi4/basicPsi4.0b5', 'atommasses not implemented yet')
-    @skipForParser('QChem', 'atommasses not implemented yet')
-    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
-    def testatommasses(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForLogfile("FChk/basicQChem5.2", "Q-Chem doesn't print SCF energy to fchk")
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print SCF energy to fchk")
+    @skipForParser("GAMESS", "atommasses not implemented yet")
+    @skipForParser("GAMESSUK", "atommasses not implemented yet")
+    @skipForParser("GAMESSDAT", "Atommasses implemented, but it does not pass the test.")
+    @skipForParser("Jaguar", "atommasses not implemented yet")
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("Molpro", "atommasses not implemented yet")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForLogfile("Psi4/basicPsi4.0b5", "atommasses not implemented yet")
+    @skipForParser("QChem", "atommasses not implemented yet")
+    @skipForParser("Serenity", "not implemented yet")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    @skipForParser("xTB", "not implemented yet")
+    def testatommasses(self, data: "ccData") -> None:
         """Do the atom masses sum up to the molecular mass?"""
-        mm = 1000*sum(self.data.atommasses)
+        mm = 1000 * sum(data.atommasses)
         msg = f"Molecule mass: {mm:f} not {self.molecularmass:f} +- {self.mass_precision:f}mD"
-        self.assertAlmostEqual(mm, self.molecularmass, delta=self.mass_precision, msg=msg)
+        assert abs(mm - self.molecularmass) < self.mass_precision, msg
 
-    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
-    def testcoreelectrons(self):
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Serenity", "not implemented yet")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    @skipForParser("xTB", "not implemented yet")
+    def testcoreelectrons(self, data: "ccData") -> None:
         """Are the coreelectrons all 0?"""
-        ans = numpy.zeros(self.data.natom, 'i')
-        numpy.testing.assert_array_equal(self.data.coreelectrons, ans)
+        ans = numpy.zeros(data.natom, "i")
+        numpy.testing.assert_array_equal(data.coreelectrons, ans)
 
-    @skipForParser('FChk', 'Formatted checkpoint files do not have a section for symmetry')
-    @skipForParser('Molcas','The parser is still being developed so we skip this test')
-    @skipForParser('Molpro', '?')
-    def testsymlabels(self):
+    @skipForParser("FChk", "Formatted checkpoint files do not have a section for symmetry")
+    @skipForParser("GAMESSDAT", "Mosyms do not exist in the file")
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("Molpro", "?")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Serenity", "Serenity does not use symmetry.")
+    @skipForParser("xTB", "not implemented yet")
+    def testsymlabels(self, data: "ccData") -> None:
         """Are all the symmetry labels either Ag/u or Bg/u?"""
-        sumwronglabels = sum([x not in ['Ag', 'Bu', 'Au', 'Bg'] for x in self.data.mosyms[0]])
-        self.assertEqual(sumwronglabels, 0)
+        sumwronglabels = sum([x not in ["Ag", "Bu", "Au", "Bg"] for x in data.mosyms[0]])
+        assert sumwronglabels == 0
 
-    def testhomos(self):
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("xTB", "xTB does not print them all")
+    def testhomos(self, data: "ccData") -> None:
         """Is the index of the HOMO equal to 34?"""
         numpy.testing.assert_array_equal(
-            self.data.homos,
-            numpy.array([34], "i"),
-            f"{numpy.array_repr(self.data.homos)} != array([34],'i')",
+            data.homos, numpy.array([34], "i"), f"{numpy.array_repr(data.homos)} != array([34],'i')"
         )
 
-    @skipForParser('FChk', 'Formatted Checkpoint files do not have a section for SCF energy')
-    def testscfvaluetype(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("FChk", "Formatted Checkpoint files do not have a section for SCF energy")
+    @skipForParser("GAMESSDAT", "Scfvalues probably do not exist in the file")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("xTB", "not implemented yet")
+    def testscfvaluetype(self, data: "ccData") -> None:
         """Are scfvalues and its elements the right type??"""
-        self.assertEqual(type(self.data.scfvalues),type([]))
-        self.assertEqual(type(self.data.scfvalues[0]),type(numpy.array([])))
+        assert isinstance(data.scfvalues, list)
+        assert isinstance(data.scfvalues[0], numpy.ndarray)
 
-    @skipForParser('FChk', 'Formatted Checkpoint files do not have a section for SCF energy')
-    def testscfenergy(self):
+    @skipForLogfile("FChk/basicQChem5.2", "Q-Chem doesn't print SCF energy to fchk")
+    @skipForLogfile("FChk/basicQChem5.4", "Q-Chem doesn't print SCF energy to fchk")
+    @skipForParser("GAMESSDAT", "Scfenergies probably do not exist in the file")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    def testscfenergy(self, data: "ccData") -> None:
         """Is the SCF energy within the target?"""
-        self.assertAlmostEqual(self.data.scfenergies[-1], self.b3lyp_energy, delta=40)
+        assert abs(
+            data.scfenergies[-1] - utils.convertor(self.scfenergy, "hartree", "eV")
+        ) < utils.convertor(self.scfenergy_delta, "hartree", "eV")
 
-    @skipForParser('FChk', 'Formatted Checkpoint files do not have a section for SCF convergence')
-    def testscftargetdim(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("FChk", "Formatted Checkpoint files do not have a section for SCF convergence")
+    @skipForParser("GAMESSDAT", "Scftargets probably do not exist in the file")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("xTB", "not implemented yet")
+    def testscftargetdim(self, data: "ccData") -> None:
         """Do the scf targets have the right dimensions?"""
-        self.assertEqual(self.data.scftargets.shape, (len(self.data.scfvalues), len(self.data.scfvalues[0][0])))
+        assert data.scftargets.shape == (len(data.scfvalues), len(data.scfvalues[0][0]))
 
-    @skipForParser('FChk', 'Formatted Checkpoint files do not have a section for SCF convergence')
-    def testscftargets(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("FChk", "Formatted Checkpoint files do not have a section for SCF convergence")
+    @skipForParser("GAMESSDAT", "Scftargets probably do not exist in the file")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("xTB", "not implemented yet")
+    def testscftargets(self, data: "ccData") -> None:
         """Are correct number of SCF convergence criteria being parsed?"""
-        self.assertEqual(len(self.data.scftargets[0]), self.num_scf_criteria)
+        assert len(data.scftargets[0]) == self.num_scf_criteria
 
-    def testlengthmoenergies(self):
+    @skipForParser("xTB", "not implemented yet")
+    def testlengthmoenergies(self, data: "ccData") -> None:
         """Is the number of evalues equal to nmo?"""
-        if hasattr(self.data, "moenergies"):
-            self.assertEqual(len(self.data.moenergies[0]), self.data.nmo)
+        if hasattr(data, "moenergies"):
+            assert len(data.moenergies[0]) == data.nmo
 
-    def testtypemoenergies(self):
+    def testtypemoenergies(self, data: "ccData") -> None:
         """Is moenergies a list containing one numpy array?"""
-        if hasattr(self.data, "moenergies"):
-            self.assertIsInstance(self.data.moenergies, list)
-            self.assertIsInstance(self.data.moenergies[0], numpy.ndarray)
+        if hasattr(data, "moenergies"):
+            assert isinstance(data.moenergies, list)
+            assert isinstance(data.moenergies[0], numpy.ndarray)
 
-    @skipForLogfile('Gaussian/basicGaussian16/dvb_sp_no.out', 'no energies for natural orbitals')
-    @skipForLogfile('Turbomole/basicTurbomole5.9/dvb_sp_symm', 'delta of 7.4, everything else ok')
-    def testfirstmoenergy(self):
+    @skipForParser("GAMESSDAT", "Moenergies probably do not exist in the file")
+    @skipForLogfile("Gaussian/basicGaussian16/dvb_sp_no.out", "no energies for natural orbitals")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForLogfile("Turbomole/basicTurbomole5.9/dvb_sp_symm", "delta of 7.4, everything else ok")
+    @skipForParser("xTB", "not implemented yet")
+    @skipForParser("Serenity", "Serenity needs it's own reference here")  # TODO
+    def testfirstmoenergy(self, data: "ccData") -> None:
         """Is the lowest energy molecular orbital within the target?"""
-        self.assertAlmostEqual(self.data.moenergies[0][0], self.b3lyp_moenergy, delta=self.b3lyp_moenergy_delta)
+        assert abs(
+            data.moenergies[0][0] - utils.convertor(self.moenergy, "hartree", "eV")
+        ) < utils.convertor(self.moenergy_delta, "hartree", "eV")
 
-    @skipForParser('DALTON', 'mocoeffs not implemented yet')
-    @skipForLogfile('Jaguar/basicJaguar7', 'Data file does not contain enough information. Can we make a new one?')
-    @skipForParser('Turbomole', 'Use of symmetry has reduced the number of mo coeffs')
-    def testdimmocoeffs(self):
+    @skipForParser("DALTON", "mocoeffs not implemented yet")
+    @skipForLogfile(
+        "Jaguar/basicJaguar7",
+        "Data file does not contain enough information. Can we make a new one?",
+    )
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Turbomole", "Use of symmetry has reduced the number of mo coeffs")
+    def testdimmocoeffs(self, data: "ccData") -> None:
         """Are the dimensions of mocoeffs equal to 1 x nmo x nbasis?"""
-        if hasattr(self.data, "mocoeffs"):
-            self.assertIsInstance(self.data.mocoeffs, list)
-            self.assertEqual(len(self.data.mocoeffs), 1)
-            self.assertEqual(self.data.mocoeffs[0].shape,
-                             (self.data.nmo, self.data.nbasis))
+        if hasattr(data, "mocoeffs"):
+            assert isinstance(data.mocoeffs, list)
+            assert len(data.mocoeffs) == 1
+            assert data.mocoeffs[0].shape == (data.nmo, data.nbasis)
 
-    @skipForParser('DALTON', 'mocoeffs not implemented yet')
-    @skipForLogfile('Jaguar/basicJaguar7', 'Data file does not contain enough information. Can we make a new one?')
-    def testfornoormo(self):
+    @skipForParser("DALTON", "mocoeffs not implemented yet")
+    @skipForLogfile(
+        "Jaguar/basicJaguar7",
+        "Data file does not contain enough information. Can we make a new one?",
+    )
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("xTB", "not implemented yet")
+    def testfornoormo(self, data: "ccData") -> None:
         """Do we have NOs or MOs?"""
-        self.assertTrue(
-            hasattr(self.data, "nocoeffs") or hasattr(self.data, "mocoeffs")
-        )
+        assert hasattr(data, "nocoeffs") or hasattr(data, "mocoeffs")
 
-    def testdimnoccnos(self):
+    @skipForParser("NBO", "attribute not implemented in this version")
+    def testdimnoccnos(self, data: "ccData") -> None:
         """Is the length of nooccnos equal to nmo?"""
-        if hasattr(self.data, "nooccnos"):
-            self.assertIsInstance(self.data.nooccnos, numpy.ndarray)
-            self.assertEqual(len(self.data.nooccnos), self.data.nmo)
+        if hasattr(data, "nooccnos"):
+            assert isinstance(data.nooccnos, numpy.ndarray)
+            assert len(data.nooccnos) == data.nmo
 
-    def testdimnocoeffs(self):
+    @skipForParser("NBO", "attribute not implemented in this version")
+    def testdimnocoeffs(self, data: "ccData") -> None:
         """Are the dimensions of nocoeffs equal to nmo x nmo?"""
-        if hasattr(self.data, "nocoeffs"):
-            self.assertIsInstance(self.data.nocoeffs, numpy.ndarray)
-            self.assertEqual(
-                self.data.nocoeffs.shape, (self.data.nmo, self.data.nmo)
-            )
+        if hasattr(data, "nocoeffs"):
+            assert isinstance(data.nocoeffs, numpy.ndarray)
+            assert data.nocoeffs.shape == (data.nmo, data.nmo)
 
-    @skipForParser('DALTON', 'To print: **INTEGRALS\n.PROPRI')
-    @skipForParser('Molcas','The parser is still being developed so we skip this test')
-    @skipForParser('Psi4', 'Psi4 does not currently have the option to print the overlap matrix')
-    @skipForParser('QChem', 'QChem cannot print the overlap matrix')
-    @skipForParser('Turbomole','The parser is still being developed so we skip this test')
-    def testaooverlaps(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("DALTON", "To print: **INTEGRALS\n.PROPRI")
+    @skipForLogfile("FChk/basicGaussian09", "Only available in QChem")
+    @skipForLogfile("FChk/basicGaussian16", "Only available in QChem")
+    @skipForParser("GAMESSDAT", "Aooverlaps probably do not exist in the file.")
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Psi4", "Psi4 does not currently have the option to print the overlap matrix")
+    @skipForParser("QChem", "QChem cannot print the overlap matrix")
+    @skipForParser("Serenity", "not implemented yet")
+    @skipForParser("Turbomole", "The parser is still being developed so we skip this test")
+    @skipForParser("xTB", "not implemented yet")
+    def testaooverlaps(self, data: "ccData") -> None:
         """Are the dims and values of the overlap matrix correct?"""
 
-        self.assertEqual(self.data.aooverlaps.shape, (self.data.nbasis, self.data.nbasis))
+        assert data.aooverlaps.shape == (data.nbasis, data.nbasis)
 
         # The matrix is symmetric.
-        row = self.data.aooverlaps[0,:]
-        col = self.data.aooverlaps[:,0]
-        self.assertEqual(sum(col - row), 0.0)
+        row = data.aooverlaps[0, :]
+        col = data.aooverlaps[:, 0]
+        assert sum(col - row) == 0.0
 
         # All values on diagonal should be exactly one.
-        for i in range(self.data.nbasis):
-            self.assertEqual(self.data.aooverlaps[i,i], 1.0)
+        for i in range(data.nbasis):
+            assert data.aooverlaps[i, i] == pytest.approx(1.0)
 
         # Check some additional values that don't seem to move around between programs.
-        self.assertAlmostEqual(self.data.aooverlaps[0, 1], self.overlap01, delta=0.01)
-        self.assertAlmostEqual(self.data.aooverlaps[1, 0], self.overlap01, delta=0.01)
-        self.assertAlmostEqual(self.data.aooverlaps[3,0], 0.0)
-        self.assertAlmostEqual(self.data.aooverlaps[0,3], 0.0)
+        assert data.aooverlaps[0, 1] == pytest.approx(self.overlap01, abs=0.01)
+        assert data.aooverlaps[1, 0] == pytest.approx(self.overlap01, abs=0.01)
 
-    def testoptdone(self):
+        assert data.aooverlaps[3, 0] == pytest.approx(0)
+        assert data.aooverlaps[0, 3] == pytest.approx(0)
+
+    def testoptdone(self, data: "ccData") -> None:
         """There should be no optdone attribute set."""
-        self.assertFalse(hasattr(self.data, 'optdone'))
+        assert not hasattr(data, "optdone")
 
-    @skipForParser('ADF', 'Not implemented yes')
-    @skipForParser('DALTON', 'Not implemented yes')
-    @skipForParser('FChk', 'Rotational constants are never written to fchk files')
-    @skipForParser('GAMESS', 'Not implemented yes')
-    @skipForParser('GAMESSUK', 'Not implemented yet')
-    @skipForParser('Jaguar', 'Not implemented yet')
-    @skipForParser('Molcas', 'Not implemented yes')
-    @skipForParser('Molpro', 'Not implemented yes')
-    @skipForParser('NWChem', 'Not implemented yes')
-    @skipForParser('ORCA', 'Not implemented yes')
-    @skipForParser('Psi4', 'Not implemented yes')
-    @skipForParser('QChem', 'Not implemented yes')
-    @skipForParser('Turbomole', 'Not implemented yes')
-    def testrotconsts(self):
-        """A single geometry leads to single set of rotational constants."""
-        self.assertEqual(self.data.rotconsts.shape, (1, 3))
-        # taken from Gaussian16/dvb_sp.out
-        ref = [4.6266363, 0.6849065, 0.5965900]
-        numpy.testing.assert_allclose(self.data.rotconsts[0], ref, rtol=0, atol=1.0e-3)
+    @skipForParser("ADF", "Not implemented yet")
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("FChk", "Rotational constants are never written to fchk files")
+    @skipForParser("GAMESS", "Not implemented yet")
+    @skipForParser("GAMESSUK", "Not implemented yet")
+    @skipForParser("GAMESSDAT", "Not implemented yet")
+    @skipForParser("Molcas", "Not implemented yet")
+    @skipForParser("Molpro", "Not implemented yet")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("NWChem", "Not implemented yet")
+    @skipForParser("Psi4", "Not implemented yet")
+    @skipForParser("QChem", "Not implemented yet")
+    @skipForParser("Serenity", "No rot. constants in Serenity")
+    @skipForParser("Turbomole", "Not implemented yet")
+    @skipForParser("xTB", "not implemented yet")
+    def testrotconsts(self, data: "ccData") -> None:
+        """A single geometry leads to single set of rotational constants (in GHz)."""
+        assert data.rotconsts.shape == (1, 3)
+        rotconsts = data.rotconsts[0]
+        numpy.testing.assert_allclose(rotconsts, self.rotconsts, rtol=5.0e-5)
 
-    @skipForParser('FChk', 'The parser is still being developed so we skip this test')
-    @skipForParser('Gaussian', 'Logfile needs to be updated')
-    @skipForParser('Jaguar', 'No dipole moments in the logfile')
-    @skipForParser('Molcas','The parser is still being developed so we skip this test')
-    def testmoments(self):
+        # Are the rotational constants ordered from largest to smallest?
+        idx = rotconsts.argsort()[::-1]
+        numpy.testing.assert_equal(rotconsts, rotconsts[idx])
+
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForLogfile("FChk/basicGaussian09", "not printed for Gaussian")
+    @skipForLogfile("FChk/basicGaussian16", "not printed for Gaussian")
+    @skipForParser("Gaussian", "Logfile needs to be updated")
+    @skipForParser("Jaguar", "No dipole moments in the logfile")
+    @skipForParser("Molcas", "The parser is still being developed so we skip this test")
+    @skipForParser("NBO", "NBO does not compute multipole moments")
+    @skipForParser("xTB", "not implemented yet")
+    def testmoments(self, data: "ccData") -> None:
         """Does the dipole and possible higher molecular moments look reasonable?"""
 
         # The reference point is always a vector, but not necessarily the
         # origin or center of mass. In this case, however, the center of mass
         # is at the origin, so we now what to expect.
-        reference = self.data.moments[0]
-        self.assertEqual(len(reference), 3)
+        reference = data.moments[0]
+        assert len(reference) == 3
         for x in reference:
-            self.assertEqual(x, 0.0)
+            assert x == 0.0
 
         # Length and value of dipole moment should always be correct (zero for this test).
-        dipole = self.data.moments[1]
-        self.assertEqual(len(dipole), 3)
+        dipole = data.moments[1]
+        assert len(dipole) == 3
         for d in dipole:
-            self.assertAlmostEqual(d, 0.0, places=7)
+            assert round(abs(d), 7) == 0
 
         # If the quadrupole is there, we can expect roughly -50B for the XX moment,
         # -50B for the YY moment and and -60B for the ZZ moment.
-        if len(self.data.moments) > 2:
-            quadrupole = self.data.moments[2]
-            self.assertEqual(len(quadrupole), 6)
-            self.assertAlmostEqual(quadrupole[0], -50, delta=2.5)
-            self.assertAlmostEqual(quadrupole[3], -50, delta=2.5)
-            self.assertAlmostEqual(quadrupole[5], -60, delta=3)
+        if len(data.moments) > 2:
+            quadrupole = data.moments[2]
+            assert len(quadrupole) == 6
+            assert abs(quadrupole[0] - -50) < 2.5
+            assert abs(quadrupole[3] - -50) < 2.5
+            assert abs(quadrupole[5] - -60) < 3
 
         # If the octupole is there, it should have 10 components and be zero.
-        if len(self.data.moments) > 3:
-            octupole = self.data.moments[3]
-            self.assertEqual(len(octupole), 10)
+        if len(data.moments) > 3:
+            octupole = data.moments[3]
+            assert len(octupole) == 10
             for m in octupole:
-                self.assertAlmostEqual(m, 0.0, delta=0.001)
+                assert abs(m) < 0.001
 
         # The hexadecapole should have 15 elements, an XXXX component of around -1900 Debye*ang^2,
         # a YYYY component of -330B and a ZZZZ component of -50B.
-        if len(self.data.moments) > 4:
-            hexadecapole = self.data.moments[4]
-            self.assertEqual(len(hexadecapole), 15)
-            self.assertAlmostEqual(hexadecapole[0], -1900, delta=90)
-            self.assertAlmostEqual(hexadecapole[10], -330, delta=11)
-            self.assertAlmostEqual(hexadecapole[14], -50, delta=2.5)
+        if len(data.moments) > 4:
+            hexadecapole = data.moments[4]
+            assert len(hexadecapole) == 15
+            assert abs(hexadecapole[0] - -1900) < 90
+            assert abs(hexadecapole[10] - -330) < 11
+            assert abs(hexadecapole[14] - -50) < 2.5
 
         # The are 21 unique 32-pole moments, and all are zero in this test case.
-        if len(self.data.moments) > 5:
-            moment32 = self.data.moments[5]
-            self.assertEqual(len(moment32), 21)
+        if len(data.moments) > 5:
+            moment32 = data.moments[5]
+            assert len(moment32) == 21
             for m in moment32:
-                self.assertEqual(m, 0.0)
+                assert m == 0.0
 
-    @skipForParser('ADF', 'reading basis set names is not implemented')
-    @skipForParser('GAMESSUK', 'reading basis set names is not implemented')
-    @skipForParser('Molcas', 'reading basis set names is not implemented')
-    @skipForParser('ORCA', 'reading basis set names is not implemented')
-    @skipForParser('Psi4', 'reading basis set names is not implemented')
-    def testmetadata_basis_set(self):
+    @skipForParser("ADF", "reading basis set names is not implemented")
+    @skipForParser("GAMESSDAT", "Basis set not implemented in this version.")
+    @skipForParser("GAMESSUK", "reading basis set names is not implemented")
+    @skipForParser("Molcas", "reading basis set names is not implemented")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Psi4", "reading basis set names is not implemented")
+    @skipForParser("xTB", "not implemented yet")
+    def testmetadata_basis_set(self, data: "ccData") -> None:
         """Does metadata have expected keys and values?"""
-        self.assertEqual(self.data.metadata["basis_set"].lower(), "sto-3g")
+        assert data.metadata["basis_set"].lower() == "sto-3g"
 
-    @skipForParser('ADF', 'reading input file contents and name is not implemented')
-    @skipForParser('DALTON', 'reading input file contents and name is not implemented')
-    @skipForParser('FChk', 'Formatted checkpoint files do not have an input file section')
-    @skipForParser('GAMESS', 'reading input file contents and name is not implemented')
-    @skipForParser('GAMESSUK', 'reading input file contents and name is not implemented')
-    @skipForParser('Gaussian', 'reading input file contents and name is not implemented')
-    @skipForParser('Jaguar', 'reading input file contents and name is not implemented')
-    @skipForParser('Molcas', 'reading input file contents and name is not implemented')
-    @skipForParser('Molpro', 'reading input file contents and name is not implemented')
-    @skipForParser('NWChem', 'reading input file contents and name is not implemented')
-    @skipForParser('Psi4', 'reading input file contents and name is not implemented')
-    @skipForParser('QChem', 'reading input file contents and name is not implemented')
-    @skipForParser('Turbomole', 'reading input file contents and name is not implemented')
-    def testmetadata_input_file(self):
+    @skipForParser("ADF", "reading input file contents and name is not implemented")
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("DALTON", "reading input file contents and name is not implemented")
+    @skipForParser("FChk", "Formatted checkpoint files do not have an input file section")
+    @skipForParser("GAMESS", "reading input file contents and name is not implemented")
+    @skipForParser("GAMESSUK", "reading input file contents and name is not implemented")
+    @skipForParser("GAMESSDAT", "reading input file contents and name is not implemented")
+    @skipForParser("Gaussian", "reading input file contents and name is not implemented")
+    @skipForParser("Jaguar", "reading input file contents and name is not implemented")
+    @skipForParser("Molcas", "reading input file contents and name is not implemented")
+    @skipForParser("Molpro", "reading input file contents and name is not implemented")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("NWChem", "reading input file contents and name is not implemented")
+    @skipForParser("Psi4", "reading input file contents and name is not implemented")
+    @skipForParser("QChem", "reading input file contents and name is not implemented")
+    @skipForParser("Serenity", "reading input file contents and name is not implemented")
+    @skipForParser("Turbomole", "reading input file contents and name is not implemented")
+    @skipForParser("xTB", "not implemented yet")
+    def testmetadata_input_file(self, data: "ccData") -> None:
         """Does metadata have expected keys and values?"""
-        self.assertIn("input_file_contents", self.data.metadata)
+        assert "input_file_contents" in data.metadata
         # TODO make input file names consistent where possible, though some
         # programs do not allow arbitrary file extensions; for example, DALTON
         # must end in `dal`.
-        self.assertIn("dvb_sp.in", self.data.metadata["input_file_name"])
+        assert "dvb_sp.in" in data.metadata["input_file_name"]
 
-    def testmetadata_methods(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    def testmetadata_methods(self, data: "ccData") -> None:
         """Does metadata have expected keys and values?"""
         # TODO implement and unify across parsers; current values are [],
         # ["HF"], ["RHF"], and ["DFT"]
-        self.assertIn("methods", self.data.metadata)
+        assert "methods" in data.metadata
 
-    def testmetadata_package(self):
+    @skipForParser("NBO", "attribute not implemented in this version")
+    def testmetadata_package(self, data: "ccData") -> None:
         """Does metadata have expected keys and values?"""
         # TODO How can the value be tested when the package name comes from
         # the parser and isn't stored on ccData?
-        self.assertIn("package", self.data.metadata)
+        assert "package" in data.metadata
 
-    @skipForParser('FChk', 'Formatted Checkpoint files do not have section for legacy package version')
-    def testmetadata_legacy_package_version(self):
+    @skipForParser("CFOUR", "The parser is still being developed so we skip this test")
+    @skipForParser(
+        "FChk", "Formatted Checkpoint files do not have section for legacy package version"
+    )
+    @skipForParser("GAMESSDAT", "Files do not contain information about the legacy package version")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Serenity", "Serenity reports version differently.")
+    @skipForParser("xTB", "not implemented yet")
+    def testmetadata_legacy_package_version(self, data: "ccData") -> None:
         """Does metadata have expected keys and values?"""
         # TODO Test specific values for each unit test.
-        self.assertIn("legacy_package_version", self.data.metadata)
+        assert "legacy_package_version" in data.metadata
 
-    @skipForParser('FChk', 'Formatted Checkpoint files do not have section for package version')
-    def testmetadata_package_version(self):
+    @skipForParser("FChk", "Formatted Checkpoint files do not have section for package version")
+    @skipForParser("GAMESSDAT", "Files do not contain information about the package version")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    def testmetadata_package_version(self, data: "ccData") -> None:
         """Does metadata have expected keys and values?"""
         # TODO Test specific values for each unit test.
-        self.assertIsInstance(
-            packaging.version.parse(self.data.metadata["package_version"]),
-            packaging.version.Version
+        assert isinstance(
+            packaging.version.parse(data.metadata["package_version"]), packaging.version.Version
         )
 
-    @skipForParser('FChk', 'point group symmetry cannot be printed')
-    @skipForParser('Molcas', 'reading point group symmetry and name is not implemented')
-    @skipForParser('Molpro', 'reading point group symmetry and name is not implemented')
-    @skipForParser('Turbomole', 'reading point group symmetry and name is not implemented')
-    def testmetadata_symmetry_detected(self):
+    @skipForLogfile("NBO/basicNBO7.0/basicORCA5.0/dvb_sp.nbo.out", "TODO impossible to determine?")
+    @skipForLogfile(
+        "FChk/basicGaussian09/dvb_sp.fchk", "impossible to determine success of calculation"
+    )
+    @skipForLogfile(
+        "FChk/basicQChem5.2/dvb_sp_modified.fchk", "impossible to determine success of calculation"
+    )
+    @skipForLogfile(
+        "FChk/basicQChem5.4/dvb_sp.fchk", "impossible to determine success of calculation"
+    )
+    @skipForLogfile("GAMESSDAT/basicGAMESS-US2018/dvb_sp.dat", "TODO impossible to determine?")
+    def testmetadata_success(self, data: "ccData") -> None:
         """Does metadata have expected keys and values?"""
-        self.assertEqual(self.data.metadata["symmetry_detected"], "c2h")
+        assert "success" in data.metadata
+        assert data.metadata["success"]
 
-    @skipForParser('FChk', 'point group symmetry cannot be printed')
-    @skipForParser('Molcas', 'reading point group symmetry and name is not implemented')
-    @skipForParser('Molpro', 'reading point group symmetry and name is not implemented')
-    @skipForParser('Turbomole', 'reading point group symmetry and name is not implemented')
-    def testmetadata_symmetry_used(self):
+    @skipForParser("FChk", "point group symmetry cannot be printed")
+    @skipForParser("GAMESSDAT", "Files probably do not contain information about symmetry_detected")
+    @skipForParser("Molcas", "reading point group symmetry and name is not implemented")
+    @skipForParser("Molpro", "reading point group symmetry and name is not implemented")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Serenity", "Serenity doesn't use symmetry")
+    @skipForParser("Turbomole", "reading point group symmetry and name is not implemented")
+    @skipForParser("xTB", "not implemented yet")
+    def testmetadata_symmetry_detected(self, data: "ccData") -> None:
         """Does metadata have expected keys and values?"""
-        self.assertEqual(self.data.metadata["symmetry_used"], "c2h")
+        assert data.metadata["symmetry_detected"] == "c2h"
 
-    @skipForParser('ADF', 'reading cpu/wall time is not implemented for this parser')
-    @skipForParser('DALTON', 'reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('FChk', 'reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('GAMESS', 'reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('GAMESSUK', 'reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('GAMESSUS', 'reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('Jaguar', 'reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('Molcas', ' reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('Molpro', 'reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('NWChem', 'reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('ORCA', 'reading cpu not implemented for this parser, wall time not available') 
-    @skipForParser('Psi3', 'reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('Psi4', 'reading cpu/wall time is not implemented for this parser') 
-    @skipForParser('Turbomole', 'reading cpu/wall time is not implemented for this parser') 
-    def testmetadata_times(self):
+    @skipForParser("FChk", "point group symmetry cannot be printed")
+    @skipForParser("GAMESSDAT", "Files probably do not contain information about symmetry_used")
+    @skipForParser("Molcas", "reading point group symmetry and name is not implemented")
+    @skipForParser("Molpro", "reading point group symmetry and name is not implemented")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("Serenity", "Serenity doesn't use symmetry")
+    @skipForParser("Turbomole", "reading point group symmetry and name is not implemented")
+    @skipForParser("xTB", "not implemented yet")
+    def testmetadata_symmetry_used(self, data: "ccData") -> None:
+        """Does metadata have expected keys and values?"""
+        assert data.metadata["symmetry_used"] == "c2h"
+
+    @skipForParser("ADF", "reading cpu/wall time is not implemented for this parser")
+    @skipForParser("DALTON", "reading cpu/wall time is not implemented for this parser")
+    @skipForParser("FChk", "reading cpu/wall time is not implemented for this parser")
+    @skipForParser("GAMESS", "reading cpu/wall time is not implemented for this parser")
+    @skipForParser("GAMESSUK", "reading cpu/wall time is not implemented for this parser")
+    @skipForParser("GAMESSUS", "reading cpu/wall time is not implemented for this parser")
+    @skipForParser("GAMESSDAT", "reading cpu/wall time is not implemented for this parser")
+    @skipForParser("Jaguar", "reading cpu/wall time is not implemented for this parser")
+    @skipForParser("Molcas", " reading cpu/wall time is not implemented for this parser")
+    @skipForParser("Molpro", "reading cpu/wall time is not implemented for this parser")
+    @skipForParser("NBO", "attribute not implemented in this version")
+    @skipForParser("NWChem", "reading cpu/wall time is not implemented for this parser")
+    @skipForParser("Psi4", "reading cpu/wall time is not implemented for this parser")
+    def testmetadata_times(self, data: "ccData") -> None:
         """Does metadata have expected keys and values of correct types?"""
-        if "wall_time" in self.data.metadata:
-            assert self.data.metadata["wall_time"]
-            assert all(isinstance(wall_time, datetime.timedelta)
-                       for wall_time in self.data.metadata["wall_time"])
-        if "cpu_time" in self.data.metadata:
-            assert self.data.metadata["cpu_time"]
-            assert all(isinstance(cpu_time, datetime.timedelta)
-                       for cpu_time in self.data.metadata["cpu_time"])
+        if "wall_time" in data.metadata:
+            assert data.metadata["wall_time"]
+            assert all(
+                isinstance(wall_time, datetime.timedelta)
+                for wall_time in data.metadata["wall_time"]
+            )
+        if "cpu_time" in data.metadata:
+            assert data.metadata["cpu_time"]
+            assert all(
+                isinstance(cpu_time, datetime.timedelta) for cpu_time in data.metadata["cpu_time"]
+            )
 
 
 class GenericHFSPTest(GenericSPTest):
-
     # Approximate HF energy of dvb after SCF in STO-3G (from DALTON 2015).
-    hf_scfenergy = -10334.03948035995
+    scfenergy = -379.7689629312
+    scfenergy_delta = 6.5e-1
 
     # Approximate energy of the innermost molecular orbital of DVB with
     # HF/STO-3G (from Psi4 1.3.1).
-    hf_moenergy = -300.43401785663235
-
-    @skipForParser('FChk', 'Formatted Checkpoint files do not have a section for SCF energy')
-    def testscfenergy(self):
-        """Is the SCF energy within the target?"""
-        self.assertAlmostEqual(self.data.scfenergies[-1], self.hf_scfenergy, delta=6.5e-1)
-
-    def testfirstmoenergy(self):
-        """Is the lowest energy molecular orbital within the target?"""
-        self.assertAlmostEqual(self.data.moenergies[0][0], self.hf_moenergy, delta=1.6e-1)
+    moenergy = -11.0407466
+    moenergy_delta = 1.6e-1
 
 
 class ADFSPTest(GenericSPTest):
@@ -481,30 +660,43 @@ class ADFSPTest(GenericSPTest):
     foverlap11 = 1.02672
     foverlap22 = 1.03585
     num_scf_criteria = 2
-    b3lyp_energy = -140
-    b3lyp_moenergy = -269.6079423873336
+    # 2013.1/dvb_sp_b.adfout
+    scfenergy = -5.162850967929650
+    moenergy = -9.9079095713775
 
-    def testfoverlaps(self):
+    def testfoverlaps(self, data: "ccData") -> None:
         """Are the dims and values of the fragment orbital overlap matrix correct?"""
 
-        self.assertEqual(self.data.fooverlaps.shape, (self.data.nbasis, self.data.nbasis))
+        assert data.fooverlaps.shape == (data.nbasis, data.nbasis)
 
         # The matrix is symmetric.
-        row = self.data.fooverlaps[0,:]
-        col = self.data.fooverlaps[:,0]
-        self.assertEqual(sum(col - row), 0.0)
+        row = data.fooverlaps[0, :]
+        col = data.fooverlaps[:, 0]
+        assert sum(col - row) == 0.0
 
         # Although the diagonal elements are close to zero, the SFOs
         # are generally not normalized, so test for a few specific values.
-        self.assertAlmostEqual(self.data.fooverlaps[0, 0], self.foverlap00, delta=0.0001)
-        self.assertAlmostEqual(self.data.fooverlaps[1, 1], self.foverlap11, delta=0.0001)
-        self.assertAlmostEqual(self.data.fooverlaps[2, 2], self.foverlap22, delta=0.0001)
+        assert abs(data.fooverlaps[0, 0] - self.foverlap00) < 0.0001
+        assert abs(data.fooverlaps[1, 1] - self.foverlap11) < 0.0001
+        assert abs(data.fooverlaps[2, 2] - self.foverlap22) < 0.0001
+
+
+class DALTONSPTest(GenericSPTest):
+    """Customized restricted single point unittest"""
+
+    # taken from basicDALTON-2013/dvb_sp_hf.out
+    rotconsts = [4.6178434, 0.6857618, 0.5970921]
+
+
+class DALTONHFSPTest(DALTONSPTest, GenericHFSPTest):
+    """Customized restricted single point unittest"""
 
 
 class GaussianSPTest(GenericSPTest):
     """Customized restricted single point unittest"""
 
     num_scf_criteria = 3
+
 
 class JaguarSPTest(GenericSPTest):
     """Customized restricted single point KS unittest"""
@@ -513,31 +705,41 @@ class JaguarSPTest(GenericSPTest):
 
 
 class JaguarHFSPTest(JaguarSPTest, GenericHFSPTest):
-    """Customized restricted single point KS unittest"""
+    """Customized restricted single point unittest"""
 
 
 class Jaguar7SPTest(JaguarSPTest):
     """Customized restricted single point unittest"""
 
     # Jaguar prints only 10 virtual MOs by default. Can we re-run with full output?
-    def testlengthmoenergies(self):
+    def testlengthmoenergies(self, data: "ccData") -> None:
         """Is the number of evalues equal to the number of occ. MOs + 10?"""
-        self.assertEqual(len(self.data.moenergies[0]), self.data.homos[0]+11)
+        assert len(data.moenergies[0]) == data.homos[0] + 11
+
 
 class MolcasSPTest(GenericSPTest):
     """Customized restricted single point unittest"""
 
     num_scf_criteria = 4
 
+
 class MolproSPTest(GenericHFSPTest):
     """Customized restricted single point HF unittest"""
 
     num_scf_criteria = 2
 
+
 class NWChemKSSPTest(GenericSPTest):
     """Customized restricted single point unittest"""
 
     num_scf_criteria = 3
+
+
+class SerenitySPTest(GenericSPTest):
+    """Customized restricted single point unittest"""
+
+    num_scf_criteria = 3
+
 
 class PsiSPTest(GenericSPTest):
     """Customized restricted single point KS unittest"""
@@ -555,52 +757,245 @@ class OrcaSPTest(GenericSPTest):
     # Orca has different weights for the masses
     molecularmass = 130190
 
-    b3lyp_moenergy_delta = 1.2e-1
+    moenergy_delta = 1.2e-1
 
     num_scf_criteria = 3
+
+    rotconsts = [4.614497946, 0.685205544, 0.596614430]
+
+
+class OrcaHFSPTest(OrcaSPTest, GenericHFSPTest):
+    """Customized restricted single point unittest"""
+
+    def testmetadata_input_file(self, data) -> None:
+        """Does metadata have expected keys and values?"""
+        assert "input_file_contents" in data.metadata
+        # TODO make input file names consistent where possible, though some
+        # programs do not allow arbitrary file extensions; for example, DALTON
+        # must end in `dal`.
+        assert "dvb_sp_hf.in" in data.metadata["input_file_name"]
+
+
+class NBOSPTest(GenericSPTest):
+    """Customized restricted single point unittest"""
+
+    def testpopulations(self, data: "ccData") -> None:
+        if hasattr(self, "populations"):
+            population_key = "npa"
+
+            expected_types = {
+                "nao": int,
+                "atom": str,
+                "no": int,
+                "lang": str,
+                "type": str,
+                "occupancy": float,
+                "energy": float,
+            }
+            assert data.populations[population_key].keys == list(expected_types.keys())
+            for key, exp_type in expected_types.items():
+                assert isinstance(data.populations[population_key][key], list)
+                assert isinstance(data.populations[population_key][key][0], exp_type)
 
 
 class TurbomoleSPTest(GenericSPTest):
     """Customized restricted single point KS unittest"""
 
     num_scf_criteria = 2
-    
-    def testmetadata_basis_set(self):
+
+    def testmetadata_basis_set(self, data: "ccData") -> None:
         """Does metadata have expected keys and values?"""
         # One of our test cases used sto-3g hondo
-        valid_basis = self.data.metadata["basis_set"].lower() in ("sto-3g", "sto-3g hondo")
-        self.assertTrue(valid_basis)
+        valid_basis = data.metadata["basis_set"].lower() in ("sto-3g", "sto-3g hondo")
+        assert valid_basis
 
 
 class TurbomoleHFSPTest(TurbomoleSPTest, GenericHFSPTest):
     """Customized restricted single point HF unittest"""
 
 
-class GenericDispersionTest(unittest.TestCase):
+class PySCFSPTest(GenericSPTest):
+    """Customized single point PySCF test"""
+
+    num_scf_criteria = 2
+
+    # PySCF produces different constants compared to Gaussian (probably
+    # because we're using slightly different isotope masses).
+    rotconsts = [4.617831, 0.685761, 0.597091]
+
+    def testmetadata_input_file(self, data) -> None:
+        """Does metadata have expected keys and values?"""
+        assert "input_file_contents" in data.metadata
+        # PySCF doesn't really have a concept of an input file
+        # assert "dvb_sp.in" in data.metadata["input_file_name"]
+
+
+class XTBSPTest(GenericSPTest):
+    """Customized restricted single point unittest"""
+
+    scfenergy = -26.425939358406
+    scfenergy_delta = 1.0e-6
+
+
+class GenericDispersionTest:
     """Generic single-geometry dispersion correction unittest"""
 
-    dispersionenergy = -0.4005496
+    # Q-Chem 5.4
+    dispersionenergy = -0.0147199319
+    dispersionenergy_delta = 2.0e-7
 
-    def testdispersionenergies(self):
+    def testdispersionenergies(self, data: "ccData") -> None:
         """Is the dispersion energy parsed correctly?"""
-        self.assertTrue(len(self.data.dispersionenergies), 1)
-        self.assertAlmostEqual(
-            self.data.dispersionenergies[0],
-            self.dispersionenergy,
-            delta=2.0e-7
-        )
+        assert len(data.dispersionenergies) == 1
+        assert abs(
+            data.dispersionenergies[0] - utils.convertor(self.dispersionenergy, "hartree", "eV")
+        ) < utils.convertor(self.dispersionenergy_delta, "hartree", "eV")
 
 
 class FireflyDispersionTest(GenericDispersionTest):
     """Customized single-geometry dispersion correction unittest"""
-    dispersionenergy = -0.4299821
+
+    # Firefly 8.1
+    dispersionenergy = -0.015801551434377520
 
 
-if __name__ == "__main__":
+class SolventMetadataTest:
+    """Check we can parse implicit solvent data."""
 
-    import sys
-    sys.path.insert(1, os.path.join(__filedir__, ".."))
+    model = ""
+    # Toluene
+    static_dielectric_constant = 2.3741
 
-    from test_data import DataSuite
-    suite = DataSuite(['SP'])
-    suite.testall()
+    def test_solvent_model(self, data: "ccData") -> None:
+        """Check solvent model was parsed correctly"""
+        assert data.metadata["solvent_model"] == self.model
+
+    @skipForLogfile(
+        "basicQChem6.0/water_hf_solvent_smd_iefpcm.out",
+        "the internally-used dielectric constant isn't printed, only solvent name",
+    )
+    def test_solvent_dielectric(self, data: "ccData") -> None:
+        """Check solvent dielectric was parsed correctly"""
+        assert (
+            abs(data.metadata["solvent_params"]["epsilon"] - self.static_dielectric_constant)
+            < 1.0e-4
+        )
+
+
+class QChemSolventMetadataTest(SolventMetadataTest):
+    static_dielectric_constant = 2.370
+
+
+class IEFPCMMetadataTest(SolventMetadataTest):
+    """Check we can parse implicit solvent data."""
+
+    model = "IEFPCM"
+
+
+class SCIPCMMetadataTest(SolventMetadataTest):
+    """Check we can parse implicit solvent data."""
+
+    model = "SCIPCM"
+
+
+class IPCMMetadataTest(SolventMetadataTest):
+    """Check we can parse implicit solvent data."""
+
+    model = "IPCM"
+    static_dielectric_constant = 78.3
+
+
+class COSMOMetadataTest(SolventMetadataTest):
+    """Check we can parse implicit solvent data."""
+
+    model = "COSMO"
+
+
+class CPCMMetadataTest(SolventMetadataTest):
+    """Check we can parse implicit solvent data."""
+
+    model = "CPCM"
+
+
+class CPCMCOSMOMetadataTest(SolventMetadataTest):
+    """Check we can parse implicit solvent data."""
+
+    model = "CPCM-COSMO"
+
+
+class SMDIEFPCMMetadataTest(SolventMetadataTest):
+    """Check we can parse implicit solvent data."""
+
+    model = "SMD-IEFPCM"
+
+
+class SMDCPCMMetadataTest(SolventMetadataTest):
+    """Check we can parse implicit solvent data."""
+
+    model = "SMD-CPCM"
+
+
+class QChemSMDIEFPCMMetadataTest(QChemSolventMetadataTest, SMDIEFPCMMetadataTest):
+    """Check we can parse implicit solvent data."""
+
+
+class QChemSMDCPCMMetadataTest(QChemSolventMetadataTest, SMDCPCMMetadataTest):
+    """Check we can parse implicit solvent data."""
+
+
+class GenericPerformanceMetadataTest:
+    """Check we can parse CPU/memory metadata."""
+
+    num_cpu = 1
+    # 400 MB.
+    memory_available = 400_000_000
+    memory_used = 0
+
+    def testmetadata_cpu(self, data: "ccData") -> None:
+        """Does metadata have the expected number of CPUs used?"""
+        assert data.metadata["num_cpu"] == self.num_cpu
+
+    def testmetadata_memory_available(self, data: "ccData") -> None:
+        """Does metadata have the expected amount of memory?"""
+        assert data.metadata["memory_available"] == self.memory_available
+
+    @skipForParser("PySCF", "not available for PySCF")
+    @skipForParser("Turbomole", "not available for Turbomole")
+    def testmetadata_memory_used(self, data: "ccData") -> None:
+        """Does metadata have the expected amount of memory?"""
+        assert data.metadata["memory_used"] == self.memory_used
+
+
+class GaussianPerformanceMetadataTest(GenericPerformanceMetadataTest):
+    """Check we can parse CPU/memory metadata."""
+
+    num_cpu = 1
+    memory_available = 400_000_000
+    memory_used = 52_428_800
+
+
+class ORCAPerformanceMetadataTest(GenericPerformanceMetadataTest):
+    """Check we can parse CPU/memory metadata."""
+
+    num_cpu = 2
+    memory_available = 1_000_000_000
+    memory_used = 463_000_000
+
+
+class ORCA6PerformanceMetadataTest(ORCAPerformanceMetadataTest):
+    """Check we can parse CPU/memory metadata."""
+
+    memory_used = 22_800_000
+
+
+class TurbomolePerformanceMetadataTest(GenericPerformanceMetadataTest):
+    """Check we can parse CPU/memory metadata."""
+
+    num_cpu = 1
+    memory_available = 524_288_000
+    memory_used = 0
+
+
+class PySCFPerformanceMetadataTest(GenericPerformanceMetadataTest):
+    num_cpu = 8
+    memory_available = 400_000_000

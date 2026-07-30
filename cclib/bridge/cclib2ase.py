@@ -1,37 +1,40 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2020, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Bridge for using cclib data in ASE (https://wiki.fysik.dtu.dk/ase/)."""
 
-import numpy as np
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Union
 
 from cclib.parser.data import ccData
 from cclib.parser.utils import find_package
 
+import numpy as np
+
+
 _found_ase = find_package("ase")
 if _found_ase:
     from ase import Atoms, units
-    from ase.io.trajectory import Trajectory
     from ase.calculators.calculator import PropertyNotImplementedError
+    from ase.io.trajectory import Trajectory
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
-def _check_ase(found_ase):
+def _check_ase(found_ase: bool) -> None:
     if not found_ase:
         raise ImportError("You must install `ase` to use this function")
 
 
-def makease(
-    atomcoords, atomnos, atomcharges=None, atomspins=None, atommasses=None
-):
+def makease(atomcoords, atomnos, atomcharges=None, atomspins=None, atommasses=None) -> "Atoms":
     """Create an ASE Atoms object from cclib attributes.
 
     ASE requires atomic partial charges and atomic spin densities rather than
     molecular charge and multiplicity, so we follow how other interfaces have
-    done (e.g., MOPAC, Gaussian and XTB) and require atomcharges and atomspins,
+    done (e.g., MOPAC, Gaussian and xTB) and require atomcharges and atomspins,
     or leave undefined.
 
     Inputs:
@@ -51,7 +54,12 @@ def makease(
     )
 
 
-def write_trajectory(filename, ccdata, popname="mulliken", index=None):
+def write_trajectory(
+    filename: Union[str, "Path"],
+    ccdata: ccData,
+    popname: str = "mulliken",
+    index: Sequence[int] | None = None,
+) -> None:
     """Write an ASE Trajectory object from a ccData object.
 
     We try to write the following properties: atomcoords, atomnos, atomcharges,
@@ -82,40 +90,39 @@ def write_trajectory(filename, ccdata, popname="mulliken", index=None):
         if index is not None and i not in index:
             continue
 
-        atomspins = None
-        if hasattr(ccdata, "atomspins"):
+        try:
             atomspins = ccdata.atomspins[popname]
-        atoms = makease(
-            atomcoords,
-            ccdata.atomnos,
-            ccdata.atomcharges[popname],
-            atomspins,
-            ccdata.atommasses,
-        )
+        except (AttributeError, KeyError):
+            atomspins = None
+        try:
+            atomcharges = ccdata.atomcharges[popname]
+        except (AttributeError, KeyError):
+            atomcharges = None
+
+        atomnos = ccdata.atomnos
+        atommasses = getattr(ccdata, "atommasses", None)
+
+        atoms = makease(atomcoords, atomnos, atomcharges, atomspins, atommasses)
 
         properties = {}
         if hasattr(ccdata, "scfenergies"):
             properties.update({"energy": ccdata.scfenergies[i]})
         if hasattr(ccdata, "grads"):
             try:
-                properties.update(
-                    {"forces": -ccdata.grads[i] * units.Hartree / units.Bohr}
-                )
+                properties.update({"forces": -ccdata.grads[i] * units.Hartree / units.Bohr})
             except IndexError:
                 pass
 
         if i == len(ccdata.atomcoords) - 1:  # last geometry
             if hasattr(ccdata, "moments"):
                 properties.update({"dipole": ccdata.moments[1] * units.Bohr})
-            if hasattr(ccdata, "free_energy"):
-                properties.update(
-                    {"free_energy": ccdata.freeenergy * units.Hartree}
-                )
+            if hasattr(ccdata, "freeenergy"):
+                properties.update({"free_energy": ccdata.freeenergy * units.Hartree})
 
         traj.write(atoms, **properties)
 
 
-def read_trajectory(filename):
+def read_trajectory(filename) -> ccData:
     """Read an ASE Trajectory object and return a ccData object.
 
     The returned object has everything write_trajectory writes, plus natom,
@@ -170,7 +177,7 @@ def read_trajectory(filename):
     return ccData(attributes)
 
 
-def makecclib(atoms, popname="mulliken"):
+def makecclib(atoms: "Atoms", popname: str = "mulliken") -> ccData:
     """Create cclib attributes and return a ccData from an ASE Atoms object.
 
     Available data (such as forces/gradients and potential energy/free
@@ -202,9 +209,7 @@ def makecclib(atoms, popname="mulliken"):
     try:
         attributes["atomspins"] = {popname: atoms.get_magnetic_moments()}
     except (PropertyNotImplementedError, RuntimeError):
-        attributes["atomspins"] = {
-            popname: atoms.get_initial_magnetic_moments()
-        }
+        attributes["atomspins"] = {popname: atoms.get_initial_magnetic_moments()}
 
     # the following is how ASE determines charge and multiplicity from initial
     # charges and initial magnetic moments in its Gaussian interface
@@ -217,22 +222,15 @@ def makecclib(atoms, popname="mulliken"):
     except RuntimeError:
         pass
     try:
-        attributes["grads"] = (
-            -np.array([atoms.get_forces()]) * units.Bohr / units.Hartree
-        )
+        attributes["grads"] = -np.array([atoms.get_forces()]) * units.Bohr / units.Hartree
     except RuntimeError:
         pass
     try:
-        attributes["moments"] = [
-            atoms.get_center_of_mass(),
-            atoms.get_dipole_moment() / units.Bohr,
-        ]
+        attributes["moments"] = [atoms.get_center_of_mass(), atoms.get_dipole_moment() / units.Bohr]
     except RuntimeError:
         pass
     try:
-        attributes["freeenergy"] = (
-            atoms.get_potential_energy(force_consistent=True) / units.Hartree
-        )
+        attributes["freeenergy"] = atoms.get_potential_energy(force_consistent=True) / units.Hartree
     except RuntimeError:
         pass
 

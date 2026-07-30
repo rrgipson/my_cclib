@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2017, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -15,22 +13,22 @@ from cclib.parser.utils import PeriodicTable
 class XYZ(filereader.Reader):
     """A reader for XYZ (Cartesian coordinate) files."""
 
-    def __init__(self, source, *args, **kwargs):
+    def __init__(self, source, *args, **kwargs) -> None:
         super().__init__(source, *args, **kwargs)
 
         self.pt = PeriodicTable()
 
-    def parse(self):
+    def parse(self) -> ccData:
         super().parse()
 
         self.generate_repr()
 
         return self.data
 
-    def generate_repr(self):
+    def generate_repr(self) -> None:
         """Convert the raw contents of the source into the internal representation."""
 
-        assert hasattr(self, 'filecontents')
+        assert hasattr(self, "filecontents")
 
         it = iter(self.filecontents.splitlines())
 
@@ -46,10 +44,9 @@ class XYZ(filereader.Reader):
         comments = []
 
         while True:
-
             try:
                 line = next(it)
-                if line.strip() == '':
+                if line.strip() == "":
                     line = next(it)
                 tokens = line.split()
                 assert len(tokens) >= 1
@@ -75,10 +72,10 @@ class XYZ(filereader.Reader):
                 break
 
         attributes = {
-            'natom': natom,
-            'atomnos': atomnos,
-            'atomcoords': all_atomcoords,
-            'metadata': {"comments": comments},
+            "natom": natom,
+            "atomnos": atomnos,
+            "atomcoords": all_atomcoords,
+            "metadata": {"comments": comments},
         }
 
         self.data = ccData(attributes)

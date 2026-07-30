@@ -1,49 +1,53 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2020, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
 
 """Parser for NWChem output files"""
 
-
 import itertools
 import re
+from typing import TYPE_CHECKING
+
+from cclib.parser import logfileparser, utils
 
 import numpy
+from packaging.version import parse as parse_version
 
-from cclib.parser import logfileparser
-from cclib.parser import utils
+
+if TYPE_CHECKING:
+    from cclib.parser.logfilewrapper import FileWrapper
 
 
 class NWChem(logfileparser.Logfile):
     """An NWChem log file."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(logname="NWChem", *args, **kwargs)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of the object."""
         return f"NWChem log file {self.filename}"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a representation of the object."""
         return f'NWChem("{self.filename}")'
 
-    def normalisesym(self, label):
+    def normalisesym(self, label: str) -> str:
         """NWChem does not require normalizing symmetry labels."""
         return label
 
-    name2element = lambda self, lbl: "".join(itertools.takewhile(str.isalpha, str(lbl)))
+    @staticmethod
+    def name2element(lbl: str) -> str:
+        return "".join(itertools.takewhile(str.isalpha, str(lbl))).title()
 
-    def extract(self, inputfile, line):
+    def extract(self, inputfile: "FileWrapper", line: str) -> None:
         """Extract information from the file object inputfile."""
         # search for No. of atoms     :
         if line[:22] == "          No. of atoms":
-            if not hasattr(self, 'natom'):
+            if not hasattr(self, "natom"):
                 natom = int(line[28:])
-                self.set_attribute('natom', natom)
+                self.set_attribute("natom", natom)
 
         # Extract the version number and the version control information, if
         # it exists.
@@ -53,9 +57,12 @@ class NWChem(logfileparser.Logfile):
             self.metadata["package_version"] = base_package_version
             line = next(inputfile)
             if "nwchem revision" in line:
-                self.metadata[
-                    "package_version"
-                ] = f"{self.metadata['package_version']}+{line.split()[3].split('-')[-1]}"
+                revision = line.split()[3].split("-")[-1]
+                if revision != "N/A":
+                    self.metadata["package_version"] = (
+                        f"{self.metadata['package_version']}+{revision}"
+                    )
+            self.set_attribute("package_version", parse_version(self.metadata["package_version"]))
 
         # This is printed in the input module, so should always be the first coordinates,
         # and contains some basic information we want to parse as well. However, this is not
@@ -63,11 +70,13 @@ class NWChem(logfileparser.Logfile):
         # since the gradients module has a separate coordinate printout, which happens
         # alongside the coordinate gradients. This geometry printout happens at the
         # beginning of each optimization step only.
-        if line.strip() == 'Geometry "geometry" -> ""' or line.strip() == 'Geometry "geometry" -> "geometry"':
+        if (
+            line.strip() == 'Geometry "geometry" -> ""'
+            or line.strip() == 'Geometry "geometry" -> "geometry"'
+        ):
+            self.skip_lines(inputfile, ["dashes", "blank", "units", "blank", "header", "dashes"])
 
-            self.skip_lines(inputfile, ['dashes', 'blank', 'units', 'blank', 'header', 'dashes'])
-
-            if not hasattr(self, 'atomcoords'):
+            if not hasattr(self, "atomcoords"):
                 self.atomcoords = []
 
             line = next(inputfile)
@@ -86,11 +95,24 @@ class NWChem(logfileparser.Logfile):
 
             self.atomcoords.append(coords)
 
-            self.set_attribute('atomnos', atomnos)
-            self.set_attribute('natom', len(atomnos))
+            self.set_attribute("atomnos", atomnos)
+            self.set_attribute("natom", len(atomnos))
+
+        if line.strip() == "Atomic Mass":
+            self.skip_lines(inputfile, ["d", "b"])
+            assert hasattr(self, "atomnos")
+            unique_atomnos = set(self.atomnos)
+            name2mass = {}
+            for _ in range(len(unique_atomnos)):
+                tokens = next(inputfile).split()
+                mtch = re.search(r"[a-zA-Z]+", tokens[0])
+                assert mtch is not None
+                name2mass[self.name2element(mtch.group())] = float(tokens[1])
+            masses = [name2mass[self.table.element[number]] for number in self.atomnos]
+            self.set_attribute("atommasses", masses)
 
         if line.strip() == "Symmetry information":
-            self.skip_lines(inputfile, ['d', 'b'])
+            self.skip_lines(inputfile, ["d", "b"])
             line = next(inputfile)
             assert line[1:11] == "Group name"
             point_group_full = line.split()[2].lower()
@@ -104,22 +126,23 @@ class NWChem(logfileparser.Logfile):
             # some places:
             # http://www.nwchem-sw.org/index.php/Release66:Geometry
             point_group_abelian = point_group_full
-            self.metadata['symmetry_detected'] = point_group_full
-            self.metadata['symmetry_used'] = point_group_abelian
+            self.metadata["symmetry_detected"] = point_group_full
+            self.metadata["symmetry_used"] = point_group_abelian
 
         # If the geometry is printed in XYZ format, it will have the number of atoms.
         if line[12:31] == "XYZ format geometry":
-
-            self.skip_line(inputfile, 'dashes')
+            self.skip_line(inputfile, "dashes")
             natom = int(next(inputfile).strip())
-            self.set_attribute('natom', natom)
+            self.set_attribute("natom", natom)
 
         if line.strip() == "NWChem Geometry Optimization":
             # see cclib/cclib#1057
-            self.skip_lines(inputfile, ['d', 'b', 'b'])
+            self.skip_lines(inputfile, ["d", "b", "b"])
             line = next(inputfile)
             if "maximum gradient threshold" not in line:
-                self.skip_lines(inputfile, ['b', 'title', 'b', 'b'])
+                self.skip_lines(inputfile, ["b", "title", "b", "b"])
+                line = next(inputfile)
+            if "no constraints" in line:
                 line = next(inputfile)
             assert "maximum gradient threshold" in line
             while line.strip():
@@ -133,7 +156,7 @@ class NWChem(logfileparser.Logfile):
                     xrms = float(line.split()[-1])
                 line = next(inputfile)
 
-            self.set_attribute('geotargets', [gmax, grms, xmax, xrms])
+            self.set_attribute("geotargets", [gmax, grms, xmax, xrms])
 
         # NWChem does not normally print the basis set for each atom, but rather
         # chooses the concise option of printing Gaussian coefficients for each
@@ -171,14 +194,14 @@ class NWChem(logfileparser.Logfile):
         # use the same basis set, but that might not be true, and this will probably
         # need to be considered in the future when such a logfile appears.
         if line.strip() == """Basis "ao basis" -> "ao basis" (cartesian)""":
-            self.skip_line(inputfile, 'dashes')
+            self.skip_line(inputfile, "dashes")
             gbasis_dict = {}
             line = next(inputfile)
             while line.strip():
                 atomname = line.split()[0]
                 atomelement = self.name2element(atomname)
                 gbasis_dict[atomelement] = []
-                self.skip_lines(inputfile, ['d', 'labels', 'd'])
+                self.skip_lines(inputfile, ["d", "labels", "d"])
                 shells = []
                 line = next(inputfile)
                 while line.strip() and line.split()[0].isdigit():
@@ -204,7 +227,7 @@ class NWChem(logfileparser.Logfile):
                 atomtype = self.table.element[self.atomnos[i]]
                 gbasis.append(gbasis_dict[atomtype])
 
-            self.set_attribute('gbasis', gbasis)
+            self.set_attribute("gbasis", gbasis)
 
         # Normally the indexes of AOs assigned to specific atoms are also not printed,
         # so we need to infer that. We could do that from the previous section,
@@ -236,8 +259,7 @@ class NWChem(logfileparser.Logfile):
             match = re.match(r' Summary of "([^\"]*)" -> "([^\"]*)" \((.+)\)', line)
 
             if match and match.group(1) == match.group(2):
-
-                self.skip_lines(inputfile, ['d', 'title', 'd'])
+                self.skip_lines(inputfile, ["d", "title", "d"])
 
                 self.shells = {}
                 self.shells["type"] = match.group(3)
@@ -250,7 +272,7 @@ class NWChem(logfileparser.Logfile):
                     atomelement = self.name2element(atomname)
                     self.metadata["basis_set"] = desc
 
-                    self.shells[atomname] = types
+                    self.shells[atomelement] = types
                     atombasis_dict[atomelement] = int(funcs)
                     line = next(inputfile)
 
@@ -259,39 +281,41 @@ class NWChem(logfileparser.Logfile):
                 for atom in self.atomnos:
                     atomelement = self.table.element[atom]
                     nfuncs = atombasis_dict[atomelement]
-                    atombasis.append(list(range(last, last+nfuncs)))
+                    atombasis.append(list(range(last, last + nfuncs)))
                     last = atombasis[-1][-1] + 1
 
-                self.set_attribute('atombasis', atombasis)
+                self.set_attribute("atombasis", atombasis)
 
         if line.strip() == "Symmetry analysis of basis":
-            self.skip_lines(inputfile, ['d', 'b'])
-            if not hasattr(self, 'symlabels'):
-                self.symlabels = []
-            for _ in range(self.pg_order):
+            self.skip_lines(inputfile, ["d", "b"])
+            # The number of lines here is not the order of the point group but
+            # is the number of irreducible representations, which isn't
+            # printed anywhere in the file.
+            line = next(inputfile)
+            while line.strip():
+                self.append_attribute("symlabels", self.normalisesym(line.split()[0]))
                 line = next(inputfile)
-                self.symlabels.append(self.normalisesym(line.split()[0]))
 
         # This section contains general parameters for Hartree-Fock calculations,
         # which do not contain the 'General Information' section like most jobs.
         if line.strip() == "NWChem SCF Module":
             # If the calculation doesn't have a title specified, there
             # aren't as many lines to skip here.
-            self.skip_lines(inputfile, ['d', 'b', 'b'])
+            self.skip_lines(inputfile, ["d", "b", "b"])
             line = next(inputfile)
             if line.strip():
-                self.skip_lines(inputfile, ['b', 'b', 'b'])
+                self.skip_lines(inputfile, ["b", "b", "b"])
             line = next(inputfile)
             while line.strip():
                 if line[2:8] == "charge":
                     charge = int(float(line.split()[-1]))
-                    self.set_attribute('charge', charge)
+                    self.set_attribute("charge", charge)
                 if line[2:13] == "open shells":
                     unpaired = int(line.split()[-1])
-                    self.set_attribute('mult', 2*unpaired + 1)
+                    self.set_attribute("mult", 2 * unpaired + 1)
                 if line[2:7] == "atoms":
                     natom = int(line.split()[-1])
-                    self.set_attribute('natom', natom)
+                    self.set_attribute("natom", natom)
                 if line[2:11] == "functions":
                     nfuncs = int(line.split()[-1])
                     self.set_attribute("nbasis", nfuncs)
@@ -300,42 +324,43 @@ class NWChem(logfileparser.Logfile):
         # This section contains general parameters for DFT calculations, as well as
         # for the many-electron theory module.
         if line.strip() == "General Information":
-
-            if hasattr(self, 'linesearch') and self.linesearch:
+            if hasattr(self, "linesearch") and self.linesearch:
                 return
 
             while line.strip():
-
                 if "No. of atoms" in line:
-                    self.set_attribute('natom', int(line.split()[-1]))
+                    self.set_attribute("natom", int(line.split()[-1]))
                 if "Charge" in line:
-                    self.set_attribute('charge', int(line.split()[-1]))
+                    self.set_attribute("charge", int(line.split()[-1]))
                 if "Spin multiplicity" in line:
                     mult = line.split()[-1]
                     if mult == "singlet":
                         mult = 1
-                    self.set_attribute('mult', int(mult))
+                    self.set_attribute("mult", int(mult))
                 if "AO basis - number of function" in line:
                     nfuncs = int(line.split()[-1])
-                    self.set_attribute('nbasis', nfuncs)
+                    self.set_attribute("nbasis", nfuncs)
 
                 # These will be present only in the DFT module.
                 if "Convergence on energy requested" in line:
-                    target_energy = utils.float(line.split()[-1])
+                    self.target_energy = utils.float(line.split()[-1])
                 if "Convergence on density requested" in line:
-                    target_density = utils.float(line.split()[-1])
+                    self.target_density = utils.float(line.split()[-1])
                 if "Convergence on gradient requested" in line:
-                    target_gradient = utils.float(line.split()[-1])
+                    self.target_gradient = utils.float(line.split()[-1])
 
                 line = next(inputfile)
 
-            # Pretty nasty temporary hack to set scftargets only in the SCF module.
-            if "target_energy" in dir() and "target_density" in dir() and "target_gradient" in dir():
-                if not hasattr(self, 'scftargets'):
-                    self.scftargets = []
-                self.scftargets.append([target_energy, target_density, target_gradient])
+            # set scftargets only in the SCF module.
+            scftargetattrs = ("target_energy", "target_density", "target_gradient")
+            if self.hasattrs(scftargetattrs):
+                self.append_attribute(
+                    "scftargets", [getattr(self, attr) for attr in scftargetattrs]
+                )
+                for attr in scftargetattrs:
+                    delattr(self, attr)
 
-        #DFT functional information
+        # DFT functional information
         if "XC Information" in line:
             line = next(inputfile)
             line = next(inputfile)
@@ -352,47 +377,43 @@ class NWChem(logfileparser.Logfile):
         #   3      -0.00000     0.00000     1.00000     0.00000     0.00000    -0.00014
         # ...
         if "global array: Temp Over[" in line:
-
-            self.set_attribute('nbasis', int(line.split('[')[1].split(',')[0].split(':')[1]))
-            self.set_attribute('nmo', int(line.split(']')[0].split(',')[1].split(':')[1]))
+            self.set_attribute("nbasis", int(line.split("[")[1].split(",")[0].split(":")[1]))
+            self.set_attribute("nmo", int(line.split("]")[0].split(",")[1].split(":")[1]))
 
             aooverlaps = []
             while len(aooverlaps) < self.nbasis:
+                self.skip_line(inputfile, "blank")
 
-                self.skip_line(inputfile, 'blank')
-
-                indices = [int(i) for i in inputfile.next().split()]
+                indices = [int(i) for i in next(inputfile).split()]
                 assert indices[0] == len(aooverlaps) + 1
 
                 self.skip_line(inputfile, "dashes")
-                data = [inputfile.next().split() for i in range(self.nbasis)]
+                data = [next(inputfile).split() for i in range(self.nbasis)]
                 indices = [int(d[0]) for d in data]
-                assert indices == list(range(1, self.nbasis+1))
+                assert indices == list(range(1, self.nbasis + 1))
 
                 for i in range(1, len(data[0])):
                     vector = [float(d[i]) for d in data]
                     aooverlaps.append(vector)
 
-            self.set_attribute('aooverlaps', aooverlaps)
+            self.set_attribute("aooverlaps", aooverlaps)
 
         if line.strip() in ("The SCF is already converged", "The DFT is already converged"):
-            if hasattr(self, 'linesearch') and self.linesearch:
+            if hasattr(self, "linesearch") and self.linesearch:
                 return
-            if hasattr(self, 'scftargets'):
+            if hasattr(self, "scftargets"):
                 self.scftargets.append(self.scftargets[-1])
-            if hasattr(self, 'scfvalues'):
+            if hasattr(self, "scfvalues"):
                 self.scfvalues.append(self.scfvalues[-1])
 
         # The default (only?) SCF algorithm for Hartree-Fock is a preconditioned conjugate
         # gradient method that apparently "always" converges, so this header should reliably
         # signal a start of the SCF cycle. The convergence targets are also printed here.
         if line.strip() == "Quadratically convergent ROHF":
-
-            if hasattr(self, 'linesearch') and self.linesearch:
+            if hasattr(self, "linesearch") and self.linesearch:
                 return
 
-            while not "Final" in line:
-
+            while "Final" not in line:
                 # Only the norm of the orbital gradient is used to test convergence.
                 if line[:22] == " Convergence threshold":
                     target = float(line.split()[-1])
@@ -406,9 +427,9 @@ class NWChem(logfileparser.Logfile):
                     while list(set(line.strip())) != ["-"]:
                         line = next(inputfile)
 
-                if line.split() == ['iter', 'energy', 'gnorm', 'gmax', 'time']:
+                if line.split() == ["iter", "energy", "gnorm", "gmax", "time"]:
                     values = []
-                    self.skip_line(inputfile, 'dashes')
+                    self.skip_line(inputfile, "dashes")
                     line = next(inputfile)
                     while line.strip():
                         it, energy, gnorm, gmax, time = line.split()
@@ -419,17 +440,18 @@ class NWChem(logfileparser.Logfile):
                         # Is this the end of the file for some reason?
                         except StopIteration:
                             self.logger.warning(
-                                f"File terminated before end of last SCF! Last gradient norm: {gnorm}"
+                                "File terminated before end of last SCF! Last gradient norm: %f",
+                                gnorm,
                             )
                             break
-                    if not hasattr(self, 'scfvalues'):
+                    if not hasattr(self, "scfvalues"):
                         self.scfvalues = []
                     self.scfvalues.append(values)
 
                 try:
                     line = next(inputfile)
                 except StopIteration:
-                    self.logger.warning('File terminated?')
+                    self.logger.warning("File terminated?")
                     break
 
         # The SCF for DFT does not use the same algorithm as Hartree-Fock, but always
@@ -440,16 +462,22 @@ class NWChem(logfileparser.Logfile):
         # d= 0,ls=0.0,diis     2   -382.3017298534 -4.73D-02  6.99D-03  3.82D-02    39.3
         # d= 0,ls=0.0,diis     3   -382.2954343173  6.30D-03  4.21D-03  7.95D-02    55.3
         # ...
-        if line.split() == ['convergence', 'iter', 'energy', 'DeltaE', 'RMS-Dens', 'Diis-err', 'time']:
-
-            if hasattr(self, 'linesearch') and self.linesearch:
+        if line.split() == [
+            "convergence",
+            "iter",
+            "energy",
+            "DeltaE",
+            "RMS-Dens",
+            "Diis-err",
+            "time",
+        ]:
+            if hasattr(self, "linesearch") and self.linesearch:
                 return
 
-            self.skip_line(inputfile, 'dashes')
+            self.skip_line(inputfile, "dashes")
             line = next(inputfile)
             values = []
             while line.strip():
-
                 # Sometimes there are things in between iterations with fewer columns,
                 # and we want to skip those lines, most probably. An exception might
                 # unrestricted calcualtions, which show extra RMS density and DIIS
@@ -474,11 +502,11 @@ class NWChem(logfileparser.Logfile):
                 # Is this the end of the file for some reason?
                 except StopIteration:
                     self.logger.warning(
-                        f"File terminated before end of last SCF! Last error: {diis}"
+                        "File terminated before end of last SCF! Last error: %f", diis
                     )
                     break
 
-            if not hasattr(self, 'scfvalues'):
+            if not hasattr(self, "scfvalues"):
                 self.scfvalues = []
 
             self.scfvalues.append(values)
@@ -493,16 +521,16 @@ class NWChem(logfileparser.Logfile):
         #
         # and the summary lines that describe the main SCF cycle for the frsit step look like this:
         #
-        #@ Step       Energy      Delta E   Gmax     Grms     Xrms     Xmax   Walltime
-        #@ ---- ---------------- -------- -------- -------- -------- -------- --------
-        #@    0    -379.76896249  0.0D+00  0.04567  0.01110  0.00000  0.00000      4.2
+        # @ Step       Energy      Delta E   Gmax     Grms     Xrms     Xmax   Walltime
+        # @ ---- ---------------- -------- -------- -------- -------- -------- --------
+        # @    0    -379.76896249  0.0D+00  0.04567  0.01110  0.00000  0.00000      4.2
         #                                                       ok       ok
         #
         # However, for subsequent step the format is a bit different:
         #
         #  Step       Energy      Delta E   Gmax     Grms     Xrms     Xmax   Walltime
         #  ---- ---------------- -------- -------- -------- -------- -------- --------
-        #@    2    -379.77794602 -7.4D-05  0.00118  0.00023  0.00440  0.01818     14.8
+        # @    2    -379.77794602 -7.4D-05  0.00118  0.00023  0.00440  0.01818     14.8
         #                                              ok
         #
         # There is also a summary of the line search (which we don't use now), like this:
@@ -513,10 +541,10 @@ class NWChem(logfileparser.Logfile):
         #
         if line[10:14] == "Step":
             self.geostep = int(line.split()[-1])
-            self.skip_line(inputfile, 'dashes')
+            self.skip_line(inputfile, "dashes")
             self.linesearch = False
         if line[0] == "@" and line.split()[1] == "Step":
-            at_and_dashes = next(inputfile)
+            self.skip_line(inputfile, "at and dashes")
             line = next(inputfile)
             tokens = line.split()
             assert int(tokens[1]) == self.geostep == 0
@@ -527,7 +555,7 @@ class NWChem(logfileparser.Logfile):
             self.append_attribute("geovalues", [gmax, grms, xmax, xrms])
             self.linesearch = True
         if line[2:6] == "Step":
-            self.skip_line(inputfile, 'dashes')
+            self.skip_line(inputfile, "dashes")
             line = next(inputfile)
             tokens = line.split()
             assert int(tokens[1]) == self.geostep
@@ -535,7 +563,7 @@ class NWChem(logfileparser.Logfile):
             grms = float(tokens[5])
             xrms = float(tokens[6])
             xmax = float(tokens[7])
-            if hasattr(self, 'linesearch') and self.linesearch:
+            if hasattr(self, "linesearch") and self.linesearch:
                 return
             self.append_attribute("geovalues", [gmax, grms, xmax, xrms])
             self.linesearch = True
@@ -547,13 +575,13 @@ class NWChem(logfileparser.Logfile):
         #      ----------------------
         #
         if line.strip() == "Optimization converged":
-            self.skip_line(inputfile, 'dashes')
-            if not hasattr(self, 'optdone'):
+            self.skip_line(inputfile, "dashes")
+            if not hasattr(self, "optdone"):
                 self.optdone = []
             self.optdone.append(len(self.geovalues) - 1)
 
-        if "Failed to converge" in line and hasattr(self, 'geovalues'):
-            if not hasattr(self, 'optdone'):
+        if "Failed to converge" in line and hasattr(self, "geovalues"):
+            if not hasattr(self, "optdone"):
                 self.optdone = []
 
         # extract the theoretical method
@@ -564,23 +592,17 @@ class NWChem(logfileparser.Logfile):
 
         # The line containing the final SCF energy seems to be always identifiable like this.
         if "Total SCF energy" in line or "Total DFT energy" in line:
-
             # NWChem often does a line search during geometry optimization steps, reporting
             # the SCF information but not the coordinates (which are not necessarily 'intermediate'
             # since the step size can become smaller). We want to skip these SCF cycles,
             # unless the coordinates can also be extracted (possibly from the gradients?).
-            if hasattr(self, 'linesearch') and self.linesearch:
+            if hasattr(self, "linesearch") and self.linesearch:
                 return
 
-            if not hasattr(self, "scfenergies"):
-                self.scfenergies = []
-            energy = float(line.split()[-1])
-            energy = utils.convertor(energy, "hartree", "eV")
-            self.scfenergies.append(energy)
+            self.append_attribute("scfenergies", float(line.split()[-1]))
 
         if "Dispersion correction" in line:
-            dispersion = utils.convertor(float(line.split()[-1]), "hartree", "eV")
-            self.append_attribute("dispersionenergies", dispersion)
+            self.append_attribute("dispersionenergies", float(line.split()[-1]))
 
         # The final MO orbitals are printed in a simple list, but apparently not for
         # DFT calcs, and often this list does not contain all MOs, so make sure to
@@ -599,24 +621,27 @@ class NWChem(logfileparser.Logfile):
         #     6 ag          7 bu          8 ag          9 bu         10 ag
         # ...
         if line.strip() == "Symmetry analysis of molecular orbitals - final":
+            self.skip_lines(inputfile, ["d", "b", "Numbering of irreducible representations", "b"])
+            line = next(inputfile)
+            # This also handles the blank line between the irrep ordering and
+            # the next header.
+            while line.strip():
+                line = next(inputfile)
+            self.skip_lines(inputfile, ["Orbital symmetries", "b"])
 
-            self.skip_lines(inputfile, ['d', 'b', 'numbering', 'b', 'reps', 'b', 'syms', 'b'])
-
-            if not hasattr(self, 'mosyms'):
-                self.mosyms = [[None]*self.nbasis]
+            if not hasattr(self, "mosyms"):
+                self.mosyms = [[None] * self.nbasis]
             line = next(inputfile)
             while line.strip():
                 ncols = len(line.split())
                 assert ncols % 2 == 0
-                for i in range(ncols//2):
-                    index = int(line.split()[i*2]) - 1
-                    sym = line.split()[i*2+1]
+                for i in range(ncols // 2):
+                    index = int(line.split()[i * 2]) - 1
+                    sym = line.split()[i * 2 + 1]
                     sym = sym[0].upper() + sym[1:]
                     if self.mosyms[0][index]:
                         if self.mosyms[0][index] != sym:
-                            self.logger.warning(
-                                f"Symmetry of MO {int(index + 1)} has changed"
-                            )
+                            self.logger.warning("Symmetry of MO %d has changed", index + 1)
                     self.mosyms[0][index] = sym
                 line = next(inputfile)
 
@@ -649,21 +674,19 @@ class NWChem(logfileparser.Logfile):
         # ...
         #
         if "Final" in line and "Molecular Orbital Analysis" in line:
-
             # Unrestricted jobs have two such blocks, for alpha and beta orbitals, and
             # we need to keep track of which one we're parsing (always alpha in restricted case).
             unrestricted = ("Alpha" in line) or ("Beta" in line)
             alphabeta = int("Beta" in line)
 
-            self.skip_lines(inputfile, ['dashes', 'blank'])
+            self.skip_lines(inputfile, ["dashes", "blank"])
 
             nvectors = []
             mooccnos = []
             energies = []
-            symmetries = [None]*self.nbasis
+            symmetries = [None] * self.nbasis
             line = next(inputfile)
             while line[:7] == " Vector":
-
                 # Note: the vector count starts from 1 in NWChem.
                 nvector = int(line[7:12])
                 nvectors.append(nvector)
@@ -677,15 +700,13 @@ class NWChem(logfileparser.Logfile):
                     for i in range(1, nvector):
                         energies.append(None)
 
-                energy = utils.float(line[34:47])
-                energy = utils.convertor(energy, "hartree", "eV")
-                energies.append(energy)
+                energies.append(utils.float(line[34:47]))
 
                 # When symmetry is not used, this part of the line is missing.
                 if line[47:58].strip() == "Symmetry=":
                     sym = line[58:].strip()
                     sym = sym[0].upper() + sym[1:]
-                    symmetries[nvector-1] = sym
+                    symmetries[nvector - 1] = sym
 
                 line = next(inputfile)
                 if "MO Center" in line:
@@ -698,17 +719,17 @@ class NWChem(logfileparser.Logfile):
                     line = next(inputfile)
                 line = next(inputfile)
 
-            self.set_attribute('nmo', nvector)
+            self.set_attribute("nmo", nvector)
 
-            if not hasattr(self, 'moenergies') or (len(self.moenergies) > alphabeta):
+            if not hasattr(self, "moenergies") or (len(self.moenergies) > alphabeta):
                 self.moenergies = []
             self.moenergies.append(energies)
 
-            if not hasattr(self, 'mosyms') or (len(self.mosyms) > alphabeta):
+            if not hasattr(self, "mosyms") or (len(self.mosyms) > alphabeta):
                 self.mosyms = []
             self.mosyms.append(symmetries)
 
-            if not hasattr(self, 'homos') or (len(self.homos) > alphabeta):
+            if not hasattr(self, "homos") or (len(self.homos) > alphabeta):
                 self.homos = []
             nvector_index = mooccnos.index(0) - 1
             if nvector_index > -1:
@@ -744,42 +765,41 @@ class NWChem(logfileparser.Logfile):
         # ...
         #
         if line.strip() == "Final MO vectors":
-
-            if not hasattr(self, 'mocoeffs'):
+            if not hasattr(self, "mocoeffs"):
                 self.mocoeffs = []
 
-            self.skip_lines(inputfile, ['d', 'b', 'b'])
+            self.skip_lines(inputfile, ["d", "b", "b"])
 
             # The columns are MOs, rows AOs, but that's and educated guess since no
             # atom information is printed alongside the indices. This next line gives
             # the dimensions, which we can check. if set before this. Also, this line
             # specifies whether we are dealing with alpha or beta vectors.
             array_info = next(inputfile)
-            while ("global array" in array_info):
+            while "global array" in array_info:
                 alphabeta = int(line.split()[2] == "beta")
-                size = array_info.split('[')[1].split(']')[0]
-                nbasis = int(size.split(',')[0].split(':')[1])
-                nmo = int(size.split(',')[1].split(':')[1])
-                self.set_attribute('nbasis', nbasis)
-                self.set_attribute('nmo', nmo)
+                size = array_info.split("[")[1].split("]")[0]
+                nbasis = int(size.split(",")[0].split(":")[1])
+                nmo = int(size.split(",")[1].split(":")[1])
+                self.set_attribute("nbasis", nbasis)
+                self.set_attribute("nmo", nmo)
 
-                self.skip_line(inputfile, 'blank')
+                self.skip_line(inputfile, "blank")
                 mocoeffs = []
                 while len(mocoeffs) < self.nmo:
                     nmos = list(map(int, next(inputfile).split()))
                     assert len(mocoeffs) == nmos[0] - 1
                     for n in nmos:
                         mocoeffs.append([])
-                    self.skip_line(inputfile, 'dashes')
+                    self.skip_line(inputfile, "dashes")
                     for nb in range(nbasis):
                         line = next(inputfile)
                         index = int(line.split()[0])
-                        assert index == nb+1
+                        assert index == nb + 1
                         coefficients = list(map(float, line.split()[1:]))
                         assert len(coefficients) == len(nmos)
                         for i, c in enumerate(coefficients):
-                            mocoeffs[nmos[i]-1].append(c)
-                    self.skip_line(inputfile, 'blank')
+                            mocoeffs[nmos[i] - 1].append(c)
+                    self.skip_line(inputfile, "blank")
                 self.mocoeffs.append(mocoeffs)
 
                 array_info = next(inputfile)
@@ -794,23 +814,54 @@ class NWChem(logfileparser.Logfile):
         #    1 C    6     6.00   1.99  1.14  2.87
         #    2 C    6     6.00   1.99  1.14  2.87
         # ...
-        if line.strip() == "Mulliken analysis of the total density":
-
+        #
+        # If `print "mulliken ao"` is requested, after the section header the
+        # breakdown is different:
+        #
+        # Bfn.    Population  Atom+Function
+        # ---------------------------------
+        #   1      1.997265     1 C  s
+        #   2      0.743630     1 C  s
+        #   3      0.691045     1 C  px
+        #   4      0.687280     1 C  py
+        #
+        # followed by the "Shell Charges" section, which means the
+        # Atom+Function block can be skipped.  TODO Use this section when
+        # available, since it has higher precision.
+        if line.strip() in self.mulliken_atomcharges_headers:
             if not hasattr(self, "atomcharges"):
                 self.atomcharges = {}
 
-            self.skip_lines(inputfile, ['d', 'b', 'header', 'd'])
+            _, _, header, _ = self.skip_lines(inputfile, ["d", "b", "header", "d"])
 
             charges = []
             line = next(inputfile)
-            while line.strip():
-                index, atomname, nuclear, atom = line.split()[:4]
-                shells = line.split()[4:]
-                charges.append(float(atom)-float(nuclear))
-                line = next(inputfile)
-            self.atomcharges['mulliken'] = charges
 
-        # Not the the 'overlap population' as printed in the Mulliken population analysis,
+            target_block_header = "Atom       Charge   Shell Charges"
+            if header.strip() != target_block_header:
+                while line.strip():
+                    line = next(inputfile)
+                _lines = self.skip_lines(inputfile, [target_block_header, "d"])
+                line = next(inputfile)
+
+            while line.strip():
+                _index, _atomname, atomnum, atom = line.split()[:4]
+                # 47 H    1     0.85   0.52  0.32
+                #   followed immediately by
+                # Time prior to 1st pass:     ...
+                #   or
+                # Max. records in memory = ...
+                try:
+                    nuclear = float(atomnum)
+                except ValueError:
+                    break
+                shells = line.split()[4:]
+                charges.append(nuclear - float(atom))
+                line = next(inputfile)
+
+            self.atomcharges["mulliken"] = charges
+
+        # Note the 'overlap population' as printed in the Mulliken population analysis
         # is not the same thing as the 'overlap matrix'. In fact, it is the overlap matrix
         # multiplied elementwise times the density matrix.
         #
@@ -830,15 +881,17 @@ class NWChem(logfileparser.Logfile):
         # by default, but they are printed by this modules later on. They are also print
         # for Hartree-Fock runs, though, so in that case make sure they are consistent.
         if line.strip() == "Mulliken population analysis":
-
-            self.skip_lines(inputfile, ['d', 'b', 'total_overlap_population', 'b'])
+            skipped_lines = self.skip_lines(inputfile, ["d", "b", "total_overlap_population"])
+            if "overlap population" in skipped_lines[2]:
+                self.skip_line(inputfile, "b")
+            elif "shell population" in skipped_lines[2]:
+                self.skip_line(inputfile, "d")
 
             overlaps = []
             line = next(inputfile)
             while all([c.isdigit() for c in line.split()]):
-
                 # There is always a line with the MO indices printed in thie block.
-                indices = [int(i)-1 for i in line.split()]
+                indices = [int(i) - 1 for i in line.split()]
                 for i in indices:
                     overlaps.append([])
 
@@ -863,7 +916,7 @@ class NWChem(logfileparser.Logfile):
             # use these since they are more precise (previous precision could have been just 0.01).
             while "Total      gross population on atoms" not in line:
                 line = next(inputfile)
-            self.skip_line(inputfile, 'blank')
+            self.skip_line(inputfile, "blank")
             charges = []
             for i in range(self.natom):
                 line = next(inputfile)
@@ -871,16 +924,16 @@ class NWChem(logfileparser.Logfile):
                 iatom = int(iatom)
                 ncharge = float(ncharge)
                 epop = float(epop)
-                assert iatom == (i+1)
-                charges.append(epop-ncharge)
+                assert iatom == (i + 1)
+                charges.append(ncharge - epop)
 
-            if not hasattr(self, 'atomcharges'):
+            if not hasattr(self, "atomcharges"):
                 self.atomcharges = {}
-            if not "mulliken" in self.atomcharges:
-                self.atomcharges['mulliken'] = charges
-            else:
-                assert max(self.atomcharges['mulliken'] - numpy.array(charges)) < 0.01
-                self.atomcharges['mulliken'] = charges
+            if "mulliken" in self.atomcharges:
+                assert max(self.atomcharges["mulliken"] - numpy.array(charges)) < 0.01
+            # This is going to be higher precision than "Mulliken analysis of
+            # the total density".
+            self.atomcharges["mulliken"] = charges
 
         # NWChem prints the dipole moment in atomic units first, and we could just fast forward
         # to the values in Debye, which are also printed. But we can also just convert them
@@ -902,17 +955,16 @@ class NWChem(logfileparser.Logfile):
         # ...
         #
         if line.strip() == "Dipole Moment":
-
-            self.skip_lines(inputfile, ['d', 'b'])
+            self.skip_lines(inputfile, ["d", "b"])
 
             reference_comment = next(inputfile)
             assert "(in au)" in reference_comment
             reference = next(inputfile).split()
             self.reference = [reference[-7], reference[-4], reference[-1]]
             self.reference = numpy.array([float(x) for x in self.reference])
-            self.reference = utils.convertor(self.reference, 'bohr', 'Angstrom')
+            self.reference = utils.convertor(self.reference, "bohr", "Angstrom")
 
-            self.skip_line(inputfile, 'blank')
+            self.skip_line(inputfile, "blank")
 
             magnitude = next(inputfile)
             assert magnitude.split()[-1] == "A.U."
@@ -924,7 +976,7 @@ class NWChem(logfileparser.Logfile):
 
             dipole = utils.convertor(numpy.array(dipole), "ebohr", "Debye")
 
-            if not hasattr(self, 'moments'):
+            if not hasattr(self, "moments"):
                 self.moments = [self.reference, dipole]
             else:
                 self.moments[1] == dipole
@@ -954,22 +1006,21 @@ class NWChem(logfileparser.Logfile):
         # ...
         #
         if line.strip() == "Quadrupole Moment":
-
-            self.skip_lines(inputfile, ['d', 'b'])
+            self.skip_lines(inputfile, ["d", "b"])
 
             reference_comment = next(inputfile)
             assert "(in au)" in reference_comment
             reference = next(inputfile).split()
             self.reference = [reference[-7], reference[-4], reference[-1]]
             self.reference = numpy.array([float(x) for x in self.reference])
-            self.reference = utils.convertor(self.reference, 'bohr', 'Angstrom')
+            self.reference = utils.convertor(self.reference, "bohr", "Angstrom")
 
-            self.skip_lines(inputfile, ['b', 'units', 'susc', 'b'])
+            self.skip_lines(inputfile, ["b", "units", "susc", "b"])
 
             line = next(inputfile)
             assert line.strip() == "Second moments in atomic units"
 
-            self.skip_lines(inputfile, ['b', 'header', 'd'])
+            self.skip_lines(inputfile, ["b", "header", "d"])
 
             # Parse into a dictionary and then sort by the component key.
             quadrupole = {}
@@ -986,7 +1037,7 @@ class NWChem(logfileparser.Logfile):
             # and octupole output. So, it is perfectly possible to print the quadrupole
             # and not the dipole... if that is the case set the former to None and
             # issue a warning. Also, a regression has been added to cover this case.
-            if not hasattr(self, 'moments') or len(self.moments) < 2:
+            if not hasattr(self, "moments") or len(self.moments) < 2:
                 self.logger.warning("Found quadrupole moments but no previous dipole")
                 self.moments = [self.reference, None, quadrupole]
             else:
@@ -1015,22 +1066,21 @@ class NWChem(logfileparser.Logfile):
         # ...
         #
         if line.strip() == "Octupole Moment":
-
-            self.skip_lines(inputfile, ['d', 'b'])
+            self.skip_lines(inputfile, ["d", "b"])
 
             reference_comment = next(inputfile)
             assert "(in au)" in reference_comment
             reference = next(inputfile).split()
             self.reference = [reference[-7], reference[-4], reference[-1]]
             self.reference = numpy.array([float(x) for x in self.reference])
-            self.reference = utils.convertor(self.reference, 'bohr', 'Angstrom')
+            self.reference = utils.convertor(self.reference, "bohr", "Angstrom")
 
-            self.skip_line(inputfile, 'blank')
+            self.skip_line(inputfile, "blank")
 
             line = next(inputfile)
             assert line.strip() == "Third moments in atomic units"
 
-            self.skip_lines(inputfile, ['b', 'header', 'd'])
+            self.skip_lines(inputfile, ["b", "header", "d"])
 
             octupole = {}
             for i in range(10):
@@ -1041,8 +1091,10 @@ class NWChem(logfileparser.Logfile):
 
             octupole = utils.convertor(numpy.array(octupole), "ebohr3", "Debye.ang2")
 
-            if not hasattr(self, 'moments') or len(self.moments) < 2:
-                self.logger.warning("Found octupole moments but no previous dipole or quadrupole moments")
+            if not hasattr(self, "moments") or len(self.moments) < 2:
+                self.logger.warning(
+                    "Found octupole moments but no previous dipole or quadrupole moments"
+                )
                 self.moments = [self.reference, None, None, octupole]
             elif len(self.moments) == 2:
                 self.logger.warning("Found octupole moments but no previous quadrupole moments")
@@ -1056,11 +1108,8 @@ class NWChem(logfileparser.Logfile):
 
         if "Total MP2 energy" in line:
             self.metadata["methods"].append("MP2")
-            mpenerg = float(line.split()[-1])
-            if not hasattr(self, "mpenergies"):
-                self.mpenergies = []
-            self.mpenergies.append([])
-            self.mpenergies[-1].append(utils.convertor(mpenerg, "hartree", "eV"))
+            self.append_attribute("mpenergies", [])
+            self.mpenergies[-1].append(float(line.split()[-1]))
 
         if line.strip() == "NWChem Extensible Many-Electron Theory Module":
             ccenergies = []
@@ -1073,9 +1122,7 @@ class NWChem(logfileparser.Logfile):
                     self.metadata["methods"].append("CCSD(T)")
                     ccenergies.append(float(line.split()[-1]))
             if ccenergies:
-                self.append_attribute(
-                    "ccenergies", utils.convertor(ccenergies[-1], "hartree", "eV")
-                )
+                self.append_attribute("ccenergies", ccenergies[-1])
 
         # Static and dynamic polarizability.
         if "Linear Response polarizability / au" in line:
@@ -1086,38 +1133,92 @@ class NWChem(logfileparser.Logfile):
             assert line.split()[0] == "Frequency"
             line = next(inputfile)
             assert line.split()[0] == "Wavelength"
-            self.skip_lines(inputfile, ['coordinates', 'd'])
+            self.skip_lines(inputfile, ["coordinates", "d"])
             for _ in range(3):
                 line = next(inputfile)
                 polarizability.append(line.split()[1:])
             self.polarizabilities.append(numpy.array(polarizability))
 
-        if line[:18] == ' Total times  cpu:':
-            self.metadata['success'] = True
+        if line[:18] == " Total times  cpu:":
+            self.metadata["success"] = True
 
         if line.strip() == "NWChem QMD Module":
             self.is_BOMD = True
 
         # Born-Oppenheimer molecular dynamics (BOMD): time.
         if "QMD Run Information" in line:
-            self.skip_line(inputfile, 'd')
+            self.skip_line(inputfile, "d")
             line = next(inputfile)
             assert "Time elapsed (fs)" in line
             time = float(line.split()[4])
-            self.append_attribute('time', time)
+            self.append_attribute("time", time)
 
-        # BOMD: geometry coordinates when `print low`.
-        if line.strip() == "DFT ENERGY GRADIENTS":
-            if self.is_BOMD:
-                self.skip_lines(inputfile, ['b', 'atom coordinates gradient', 'xyzxyz'])
+        if "ENERGY GRADIENTS" in line:
+            self.skip_lines(inputfile, ["b", "atom coordinates gradient", "xyzxyz"])
+            line = next(inputfile)
+            atomcoords_step = []
+            grad_step = []
+            while line.strip():
+                tokens = line.split()
+                assert len(tokens) == 8
+                atomcoords_step.append([float(c) for c in tokens[2:5]])
+                grad_step.append([float(x) for x in tokens[5:8]])
                 line = next(inputfile)
-                atomcoords_step = []
-                while line.strip():
-                    tokens = line.split()
-                    assert len(tokens) == 8
-                    atomcoords_step.append([float(c) for c in tokens[2:5]])
-                    line = next(inputfile)
-                self.atomcoords.append(atomcoords_step)
+            self.append_attribute("grads", grad_step)
+            # BOMD: geometry coordinates when `print low`.
+            if self.is_BOMD:
+                self.append_attribute("atomcoords", atomcoords_step)
+
+        if "Atom information" in line:
+            self.skip_lines(inputfile, ["atom # X Y Z mass", "d"])
+            masses = []
+            for _ in range(self.natom):
+                line = next(inputfile)
+                masses.append(utils.float(line[61:74]))
+            self.set_attribute("atommasses", masses)
+
+        # Section with atomic coordinates and masses (in higher precision than
+        # "Atomic Mass") printed in vibrational calculations.
+        if "Atom information" in line:
+            atommasses = []
+            self.skip_lines(inputfile, ["header", "d"])
+            line = next(inputfile)
+            while set(line.strip()) != {"-"}:
+                atommasses.append(utils.float(line.split()[-1]))
+                line = next(inputfile)
+            self.set_attribute("atommasses", atommasses)
+
+        if "MASS-WEIGHTED NUCLEAR HESSIAN" in line:
+            nelem = 3 * self.natom
+            hessian = numpy.empty((nelem, nelem))
+            rc = 1
+            cc = 1
+            self.skip_lines(inputfile, ["d"])
+            # Newer versions always have a space between columns, but older
+            # versions allow values in columns to touch if the value is
+            # negative.
+            if self.package_version.major >= 7:
+                line_col_width = 13
+            else:
+                line_col_width = 12
+            while cc < nelem:
+                lines = self.skip_lines(inputfile, ["b", "b", "column numbers", "d"])
+                cc_prev = cc
+                cc = int(lines[2].split()[-1])
+                while rc < nelem:
+                    line = next(inputfile).rstrip()
+                    line_col_start = 7
+                    rc = int(line[:line_col_start])
+                    vals = []
+                    while line_col_start < len(line):
+                        line_col_end = line_col_start + line_col_width
+                        vals.append(utils.float(line[line_col_start:line_col_end]))
+                        line_col_start = line_col_end
+                    cstart = cc_prev - 1
+                    cend = cstart + len(vals)
+                    hessian[rc - 1, cstart:cend] = vals
+                rc = cc + 1
+            self.set_attribute("hessian", utils.symmetrize(hessian))
 
         # Extract Thermochemistry in au (Hartree)
         #
@@ -1136,17 +1237,13 @@ class NWChem(logfileparser.Logfile):
         # - Rotational                     =    2.979 cal/mol-K
         # - Vibrational                    =   97.716 cal/mol-K
         if line[1:12] == "Temperature":
-            self.set_attribute("temperature", utils.float(line.split()[2][:-1]))
+            self.set_attribute("temperature", float(line.split()[2][:-1]))
         if line[1:28] == "frequency scaling parameter":
-            self.set_attribute("pressure", utils.float(line.split()[4]))
+            self.set_attribute("pressure", float(line.split()[4]))
         if line[1:31] == "Thermal correction to Enthalpy" and hasattr(self, "scfenergies"):
-            self.set_attribute(
-                "enthalpy",
-                utils.float(line.split()[8])
-                + utils.convertor(self.scfenergies[-1], "eV", "hartree"),
-            )
-        if line[1:32] == "Zero-Point correction to Energy" and hasattr(self, "scfenergies"):
-            self.set_attribute("zpve", utils.float(line.split()[8]))
+            self.set_attribute("enthalpy", utils.float(line.split()[8]) + self.scfenergies[-1])
+        if line[1:32] == "Zero-Point correction to Energy":
+            self.set_attribute("zpve", float(line.split()[8]))
         if line[1:29] == "Thermal correction to Energy" and hasattr(self, "scfenergies"):
             self.set_attribute(
                 "electronic_thermal_energy",
@@ -1155,18 +1252,42 @@ class NWChem(logfileparser.Logfile):
             )
         if line[1:14] == "Total Entropy":
             self.set_attribute(
-                "entropy",
-                utils.convertor(1e-3 * utils.float(line.split()[3]), "kcal/mol", "hartree"),
+                "entropy", utils.convertor(1e-3 * float(line.split()[3]), "kcal/mol", "hartree")
             )
-        
+
+        if line.strip() == "(Projected Frequencies expressed in cm-1)":
+            # We can't look for "NORMAL MODE EIGENVECTORS IN CARTESIAN
+            # COORDINATES" since it also appears for unprojected normal modes.
+            vibfreqs = []
+            vibdisps = numpy.empty(shape=(3 * self.natom, self.natom, 3))
+            mode_idx = 0
+            while mode_idx < 3 * self.natom - 1:
+                lines = self.skip_lines(inputfile, ["b", "one-based mode index", "b"])
+                tokens = next(inputfile).split()
+                nmodes_block = len(tokens) - 1
+                mode_idx_end = mode_idx + nmodes_block
+                assert tokens[0] == "P.Frequency"
+                vibfreqs.extend([float(x) for x in tokens[1:]])
+                self.skip_line(inputfile, "b")
+                for idx_atom in range(self.natom):
+                    for idx_coord in range(3):
+                        tokens = next(inputfile).split()[1:]
+                        vibdisps[mode_idx:mode_idx_end, idx_atom, idx_coord] = tokens
+                mode_idx = mode_idx_end
+            self.set_attribute("vibfreqs", vibfreqs)
+            self.set_attribute("vibdisps", vibdisps)
+
         # extract vibrational frequencies (in cm-1)
         if line.strip() == "Normal Eigenvalue ||           Projected Infra Red Intensities":
-            self.skip_lines(inputfile, ["units", "d"])  # units, dashes
+            self.skip_lines(inputfile, ["units", "dashes and pipes"])
             line = next(inputfile)  # first line of data
-            while set(line.strip()[:-1]) != {"-"}:
-                self.append_attribute("vibfreqs", utils.float(line.split()[1]))
-                self.append_attribute("vibirs", utils.float(line.split()[5]))
-                line = next(inputfile)  # next line
+            vibfreqs = []
+            while set(line.strip()) != {"-"}:
+                tokens = line.split()
+                vibfreqs.append(float(tokens[1]))
+                self.append_attribute("vibirs", float(tokens[5]))
+                line = next(inputfile)
+            self.set_attribute("vibfreqs", vibfreqs)
         # NWChem TD-DFT excited states transitions
         #
         # Have to deal with :
@@ -1208,16 +1329,14 @@ class NWChem(logfileparser.Logfile):
         #    Occ.  116  a   ---  Virt.  118  a   -0.40137 X
 
         if line[:6] == "  Root":
-            self.append_attribute(
-                "etenergies", utils.convertor(utils.float(line.split()[-2]), "eV", "wavenumber")
-            )
+            self.append_attribute("etenergies", float(line.split()[4]))
             self.append_attribute("etsyms", str.join(" ", line.split()[2:-4]))
-        
+
             self.skip_lines(inputfile, ["dashes"])
             line = next(inputfile)
             if "Spin forbidden" not in line:
                 # find Dipole Oscillator Strength
-                while not ("Dipole Oscillator Strength" in line):
+                while "Dipole Oscillator Strength" not in line:
                     line = next(inputfile)
                 etoscs = utils.float(line.split()[-1])
                 # in case of magnetic contribution replace, replace Dipole Oscillator Strength with Total Oscillator Strength
@@ -1257,9 +1376,8 @@ class NWChem(logfileparser.Logfile):
             else:
                 self.append_attribute("etoscs", 0.0)
 
-    def before_parsing(self):
-        """NWChem-specific routines performed before parsing a file.
-        """
+    def before_parsing(self) -> None:
+        """NWChem-specific routines performed before parsing a file."""
 
         # The only reason we need this identifier is if `print low` is
         # set in the input file, which we assume is likely for a BOMD
@@ -1267,13 +1385,17 @@ class NWChem(logfileparser.Logfile):
         # 'DFT ENERGY GRADIENTS' section.
         self.is_BOMD = False
 
-    def after_parsing(self):
-        """NWChem-specific routines for after parsing a file.
+        self.mulliken_atomcharges_headers = (
+            "Total Density - Mulliken Population Analysis",
+            "Mulliken analysis of the total density",
+        )
 
-        Currently, expands self.shells() into self.aonames.
-        """
-        super(NWChem, self).after_parsing()
+    def after_parsing(self) -> None:
+        """NWChem-specific routines for after parsing a file."""
+        super().after_parsing()
 
+        # Expand self.shells into a proper aonames attribute.
+        #
         # setup a few necessary things, including a regular expression
         # for matching the shells
         table = utils.PeriodicTable()
@@ -1281,27 +1403,53 @@ class NWChem(logfileparser.Logfile):
         pattern = re.compile(r"(\ds)+(\dp)*(\dd)*(\df)*(\dg)*")
 
         labels = {}
-        labels['s'] = ["%iS"]
-        labels['p'] = ["%iPX", "%iPY", "%iPZ"]
-        if self.shells['type'] == 'spherical':
-            labels['d'] = ['%iD-2', '%iD-1', '%iD0', '%iD1', '%iD2']
-            labels['f'] = ['%iF-3', '%iF-2', '%iF-1', '%iF0',
-                           '%iF1', '%iF2', '%iF3']
-            labels['g'] = ['%iG-4', '%iG-3', '%iG-2', '%iG-1', '%iG0',
-                           '%iG1', '%iG2', '%iG3', '%iG4']
-        elif self.shells['type'] == 'cartesian':
-            labels['d'] = ['%iDXX', '%iDXY', '%iDXZ',
-                           '%iDYY', '%iDYZ',
-                           '%iDZZ']
-            labels['f'] = ['%iFXXX', '%iFXXY', '%iFXXZ',
-                           '%iFXYY', '%iFXYZ', '%iFXZZ',
-                           '%iFYYY', '%iFYYZ', '%iFYZZ',
-                           '%iFZZZ']
-            labels['g'] = ['%iGXXXX', '%iGXXXY', '%iGXXXZ',
-                           '%iGXXYY', '%iGXXYZ', '%iGXXZZ',
-                           '%iGXYYY', '%iGXYYZ', '%iGXYZZ',
-                           '%iGXZZZ', '%iGYYYY', '%iGYYYZ',
-                           '%iGYYZZ', '%iGYZZZ', '%iGZZZZ']
+        labels["s"] = ["%iS"]
+        labels["p"] = ["%iPX", "%iPY", "%iPZ"]
+        if self.shells["type"] == "spherical":
+            labels["d"] = ["%iD-2", "%iD-1", "%iD0", "%iD1", "%iD2"]
+            labels["f"] = ["%iF-3", "%iF-2", "%iF-1", "%iF0", "%iF1", "%iF2", "%iF3"]
+            labels["g"] = [
+                "%iG-4",
+                "%iG-3",
+                "%iG-2",
+                "%iG-1",
+                "%iG0",
+                "%iG1",
+                "%iG2",
+                "%iG3",
+                "%iG4",
+            ]
+        elif self.shells["type"] == "cartesian":
+            labels["d"] = ["%iDXX", "%iDXY", "%iDXZ", "%iDYY", "%iDYZ", "%iDZZ"]
+            labels["f"] = [
+                "%iFXXX",
+                "%iFXXY",
+                "%iFXXZ",
+                "%iFXYY",
+                "%iFXYZ",
+                "%iFXZZ",
+                "%iFYYY",
+                "%iFYYZ",
+                "%iFYZZ",
+                "%iFZZZ",
+            ]
+            labels["g"] = [
+                "%iGXXXX",
+                "%iGXXXY",
+                "%iGXXXZ",
+                "%iGXXYY",
+                "%iGXXYZ",
+                "%iGXXZZ",
+                "%iGXYYY",
+                "%iGXYYZ",
+                "%iGXYZZ",
+                "%iGXZZZ",
+                "%iGYYYY",
+                "%iGYYYZ",
+                "%iGYYZZ",
+                "%iGYZZZ",
+                "%iGZZZZ",
+            ]
         else:
             self.logger.warning("Found a non-standard aoname representation type.")
             return
@@ -1315,8 +1463,7 @@ class NWChem(logfileparser.Logfile):
                 shell_text = self.shells[element]
             except KeyError:
                 del self.aonames
-                msg = "Cannot determine aonames for at least one atom."
-                self.logger.warning(msg)
+                self.logger.warning("Cannot determine aonames for at least one atom.")
                 break
 
             prefix = f"{element}{int(i + 1)}_"  # (e.g. C1_)
@@ -1338,5 +1485,13 @@ class NWChem(logfileparser.Logfile):
         # in Bohr. Delete the first one and perform the unit
         # conversion.
         if self.is_BOMD:
-            self.atomcoords = utils.convertor(numpy.asarray(self.atomcoords)[1:, ...],
-                                              'bohr', 'Angstrom')
+            self.atomcoords = utils.convertor(
+                numpy.asarray(self.atomcoords)[1:, ...], "bohr", "Angstrom"
+            )
+
+        # Versions >= 7.0 print an extra "General Information" section
+        # containing scftargets before entering "NWChem DFT Gradient Module".
+        # Since originally it only appeared before entering SCF and not also
+        # afterwards, keep every other starting from the first appearance.
+        if self.hasattrs(("grads", "scftargets")) and len(self.scftargets) == (2 * len(self.grads)):
+            self.scftargets = self.scftargets[::2]

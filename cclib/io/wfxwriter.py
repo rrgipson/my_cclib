@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2017, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -8,21 +6,22 @@
 """A writer for wfx format files."""
 
 import os.path
-import numpy
 
 from cclib.io import filewriter
 from cclib.parser import utils
 
+import numpy
+
 
 # Number of orbitals of type key.
 # There are 3 p type, 6 d type orbitals etc.
-ORBITAL_COUNT = {'S':1, 'P':3, 'D':6, 'F':10, 'G':15, 'H':21}
+ORBITAL_COUNT = {"S": 1, "P": 3, "D": 6, "F": 10, "G": 15, "H": 21}
 
 # Index of first orbital of type key in a list of orbitals.
 # The first s orbital has index 1, first p orbital has index 2, and first d
 # has index 5.
-ORBITAL_INDICES = {'S': 1}
-ORBITAL_NAMES = 'SPDFGH'
+ORBITAL_INDICES = {"S": 1}
+ORBITAL_NAMES = "SPDFGH"
 for idx, name in enumerate(ORBITAL_NAMES[1:], start=1):
     prev_orbital_name = ORBITAL_NAMES[idx - 1]
     prev_orbital_count = ORBITAL_COUNT[prev_orbital_name]
@@ -32,33 +31,33 @@ for idx, name in enumerate(ORBITAL_NAMES[1:], start=1):
 PI_CUBE_INV = (2.0 / numpy.pi) ** 3
 
 # Float formatting template.
-WFX_FIELD_FMT = '%22.11E'
+WFX_FIELD_FMT = "%22.11E"
 
 # Precomputed values for l+m+n to be used in MO normalization.
 _L = dict(
-    [(prim_type, 0) for prim_type in range(1, 2)] +   # s
-    [(prim_type, 1) for prim_type in range(2, 5)] +   # p
-    [(prim_type, 2) for prim_type in range(5, 11)] +  # d
-    [(prim_type, 3) for prim_type in range(11, 21)] + # f
-    [(prim_type, 4) for prim_type in range(21, 36)]   # g
+    [(prim_type, 0) for prim_type in range(1, 2)]  # s
+    + [(prim_type, 1) for prim_type in range(2, 5)]  # p
+    + [(prim_type, 2) for prim_type in range(5, 11)]  # d
+    + [(prim_type, 3) for prim_type in range(11, 21)]  # f
+    + [(prim_type, 4) for prim_type in range(21, 36)]  # g
 )
 
 # Precomputed values for ((2l-1)!! * (2m-1)!! * (2n-1)!!).
 _M = dict(
-    [(L, 1) for L in range(1, 5)] +
-    [(L, 9) for L in range(5, 8)] +
-    [(L, 1) for L in range(8, 11)] +
-    [(L, 225) for L in range(11, 14)] +
-    [(L, 9) for L in range(14, 20)] +
-    [(L, 1) for L in range(20, 21)] +
-    [(L, 11025) for L in range(21, 24)] +
-    [(L, 225) for L in range(24, 30)] +
-    [(L, 81) for L in range(30, 33)] +
-    [(L, 9) for L in range(33, 36)]
+    [(L, 1) for L in range(1, 5)]
+    + [(L, 9) for L in range(5, 8)]
+    + [(L, 1) for L in range(8, 11)]
+    + [(L, 225) for L in range(11, 14)]
+    + [(L, 9) for L in range(14, 20)]
+    + [(L, 1) for L in range(20, 21)]
+    + [(L, 11025) for L in range(21, 24)]
+    + [(L, 225) for L in range(24, 30)]
+    + [(L, 81) for L in range(30, 33)]
+    + [(L, 9) for L in range(33, 36)]
 )
 
 
-def _section(section_name, section_data):
+def _section(section_name: str, section_data: list[str] | int | float | str) -> list[str]:
     """Add opening/closing section_name tags to data."""
     opening_tag = [f"<{section_name}>"]
     closing_tag = [f"</{section_name}>"]
@@ -73,7 +72,7 @@ def _section(section_name, section_data):
     return section
 
 
-def _list_format(data, per_line, style=WFX_FIELD_FMT):
+def _list_format(data, per_line, style: str = WFX_FIELD_FMT) -> list[str]:
     """Format lists for pretty print."""
     template = style * per_line
     leftover = len(data) % per_line
@@ -81,8 +80,7 @@ def _list_format(data, per_line, style=WFX_FIELD_FMT):
     last_template = style * leftover
 
     pretty_list = [
-        template % tuple(data[i : i + per_line])
-        for i in range(0, len(data) - leftover, per_line)
+        template % tuple(data[i : i + per_line]) for i in range(0, len(data) - leftover, per_line)
     ]
     if leftover:
         return pretty_list + [last_template % tuple(data[-1 * leftover :])]
@@ -92,10 +90,18 @@ def _list_format(data, per_line, style=WFX_FIELD_FMT):
 class WFXWriter(filewriter.Writer):
     """A writer for wfx files."""
 
-    required_attrs = ('natom', 'atomcoords', 'atomnos', 'gbasis', 'charge',
-                       'homos', 'mult', 'mocoeffs')
+    required_attrs = (
+        "natom",
+        "atomcoords",
+        "atomnos",
+        "gbasis",
+        "charge",
+        "homos",
+        "mult",
+        "mocoeffs",
+    )
 
-    def _title(self):
+    def _title(self) -> str:
         """Section: Title
         Return filename without extension to be used as title."""
         title = "Written by cclib."
@@ -103,17 +109,17 @@ class WFXWriter(filewriter.Writer):
             return f"{os.path.basename(os.path.splitext(self.jobfilename)[0])}. {title}"
         return title
 
-    def _keywords(self):
+    def _keywords(self) -> str:
         """Section: Keywords.
         Return one of GTO, GIAO, CSGT keyword."""
         # Currently only GTO is supported.
-        return 'GTO'
+        return "GTO"
 
-    def _no_of_nuclei(self):
+    def _no_of_nuclei(self) -> int:
         """Section: Number of Nuclei."""
         return self.ccdata.natom
 
-    def _no_of_prims(self):
+    def _no_of_prims(self) -> int:
         """Section: Number of Primitives."""
         nprims = 0
         for atom in self.ccdata.gbasis:
@@ -121,11 +127,11 @@ class WFXWriter(filewriter.Writer):
                 nprims += ORBITAL_COUNT[prims[0]] * len(prims[1])
         return nprims
 
-    def _no_of_mos(self):
+    def _no_of_mos(self) -> int:
         """Section: Number of Occupied Molecular Orbitals."""
         return int(max(self.ccdata.homos)) + 1
 
-    def _no_of_perturbations(self):
+    def _no_of_perturbations(self) -> int:
         """Section: Number of Perturbation.
 
         This is usually zero.  For GIAO it should be 3
@@ -133,13 +139,13 @@ class WFXWriter(filewriter.Writer):
         for CSGT it should be 6
         (corresponding to Lx, Ly, Lz, Px, Py and Pz).
         """
-        if 'GIAO' in self._keywords():
+        if "GIAO" in self._keywords():
             return 3
-        elif 'CSGT' in self._keywords():
+        elif "CSGT" in self._keywords():
             return 6
         return 0
 
-    def _nuclear_names(self):
+    def _nuclear_names(self) -> list[str]:
         """Section: Nuclear Names.
         Names of nuclei present in the molecule.
 
@@ -147,70 +153,71 @@ class WFXWriter(filewriter.Writer):
         H2
         H3
         """
-        return [self.pt.element[Z]+str(i) for i, Z in
-                enumerate(self.ccdata.atomnos, start=1)]
+        return [self.pt.element[Z] + str(i) for i, Z in enumerate(self.ccdata.atomnos, start=1)]
 
-    def _atomic_nos(self):
+    def _atomic_nos(self) -> list[str]:
         """Section: Atomic Numbers."""
         return [str(Z) for Z in self.ccdata.atomnos]
 
-    def _nuclear_charges(self):
+    def _nuclear_charges(self) -> list[str]:
         """Section: Nuclear Charges."""
         nuclear_charge = [WFX_FIELD_FMT % Z for Z in self.ccdata.atomnos]
         if hasattr(self.ccdata, "coreelectrons"):
             nuclear_charge = [
-                WFX_FIELD_FMT % Z
-                for Z in self.ccdata.atomnos - self.ccdata.coreelectrons
+                WFX_FIELD_FMT % Z for Z in self.ccdata.atomnos - self.ccdata.coreelectrons
             ]
         return nuclear_charge
 
-    def _nuclear_coords(self):
+    def _nuclear_coords(self) -> list[str]:
         """Section: Nuclear Cartesian Coordinates.
         Nuclear coordinates in Bohr."""
         coord_template = WFX_FIELD_FMT * 3
-        to_bohr = lambda x: utils.convertor(x, "Angstrom", "bohr")
+
+        def to_bohr(x: float) -> float:
+            return utils.convertor(x, "Angstrom", "bohr")
+
         nuc_coords = [
-            coord_template % tuple(to_bohr(coord))
-            for coord in self.ccdata.atomcoords[-1]
+            coord_template % tuple(to_bohr(coord)) for coord in self.ccdata.atomcoords[-1]
         ]
         return nuc_coords
 
-    def _net_charge(self):
+    def _net_charge(self) -> str:
         """Section: Net Charge.
         Net charge on molecule."""
         return WFX_FIELD_FMT % self.ccdata.charge
 
-    def _no_electrons(self):
+    def _no_electrons(self) -> int:
         """Section: Number of Electrons."""
         return int(self.ccdata.nelectrons)
 
-    def _no_alpha_electrons(self):
+    def _no_alpha_electrons(self) -> int:
         """Section: Number of Alpha Electrons."""
-        no_electrons = numpy.sum(self.ccdata.atomnos - self.ccdata.coreelectrons) - self.ccdata.charge
-        no_alpha = (no_electrons + (self.ccdata.mult - 1))//2
+        no_electrons = (
+            numpy.sum(self.ccdata.atomnos - self.ccdata.coreelectrons) - self.ccdata.charge
+        )
+        no_alpha = (no_electrons + (self.ccdata.mult - 1)) // 2
         return int(no_alpha)
 
-    def _no_beta_electrons(self):
+    def _no_beta_electrons(self) -> int:
         """Section: Number of Beta Electrons."""
         return int(self.ccdata.nelectrons - self._no_alpha_electrons())
 
-    def _spin_mult(self):
+    def _spin_mult(self) -> int:
         """Section: Electronic Spin Multiplicity"""
         return self.ccdata.mult
 
-    def _prim_centers(self):
+    def _prim_centers(self) -> list[str]:
         """Section: Primitive Centers.
         List of nuclear numbers upon which the primitive basis functions
         are centered."""
         prim_centers = []
         for nuc_num, atom in enumerate(self.ccdata.gbasis, start=1):
             for prims in atom:
-                prim_centers += [nuc_num] * ORBITAL_COUNT[prims[0]]\
-                                * len(prims[1])
+                prim_centers += [nuc_num] * ORBITAL_COUNT[prims[0]] * len(prims[1])
 
         return _list_format(prim_centers, 10, "%d ")
 
-    def _rearrange_modata(self, data):
+    def _rearrange_modata(self, data: list[int] | numpy.ndarray) -> list[int]:
         """Rearranges MO related data according the expected order of
         Cartesian gaussian primitive types in wfx format.
         cclib parses mocoeffs in the order they occur in output files.
@@ -219,22 +226,19 @@ class WFXWriter(filewriter.Writer):
         if isinstance(data, numpy.ndarray):
             data = data.tolist()
 
-        pos_yyx = [key for key, val in enumerate(prim_types)
-                   if val == 17]
-        pos_yyz = [key for key, val in enumerate(prim_types)
-                   if val == 16]
+        pos_yyx = [key for key, val in enumerate(prim_types) if val == 17]
+        pos_yyz = [key for key, val in enumerate(prim_types) if val == 16]
 
         if pos_yyx:
             for pos in pos_yyx:
-                data.insert(pos-3, data.pop(pos))
+                data.insert(pos - 3, data.pop(pos))
         if pos_yyz:
             for pos in pos_yyz:
-                data.insert(pos+3, data.pop(pos + 1))
+                data.insert(pos + 3, data.pop(pos + 1))
 
         return data
 
-
-    def _get_prim_types(self):
+    def _get_prim_types(self) -> list[int]:
         """List of primitive types.
         Definition of the Cartesian Gaussian primitive types is as follows:
         1 S, 2 PX, 3 PY, 4 PZ, 5 DXX, 6 DYY, 7 DZZ, 8 DXY, 9 DXZ, 10 DYZ,
@@ -256,8 +260,7 @@ class WFXWriter(filewriter.Writer):
             for prims in atom:
                 prim_orb = []
                 for i in range(ORBITAL_COUNT[prims[0]]):
-                    prim_orb += [(ORBITAL_INDICES[prims[0]]  + i)]\
-                                * len(prims[1])
+                    prim_orb += [(ORBITAL_INDICES[prims[0]] + i)] * len(prims[1])
                 prim_types += prim_orb
         return prim_types
 
@@ -265,7 +268,7 @@ class WFXWriter(filewriter.Writer):
         """Section: Primitive Types."""
         prim_types = self._get_prim_types()
         # GAMESS specific reordering.
-        if self.ccdata.metadata['package'] == 'GAMESS':
+        if self.ccdata.metadata["package"] == "GAMESS":
             prim_types = self._rearrange_modata(prim_types)
         return _list_format(prim_types, 10, "%d ")
 
@@ -275,8 +278,7 @@ class WFXWriter(filewriter.Writer):
         prim_exps = []
         for atom in self.ccdata.gbasis:
             for prims in atom:
-                prim_exps += [prim[0] for prim in prims[1]]\
-                            * ORBITAL_COUNT[prims[0]]
+                prim_exps += [prim[0] for prim in prims[1]] * ORBITAL_COUNT[prims[0]]
         return _list_format(prim_exps, 5)
 
     def _mo_occup_nos(self):
@@ -286,45 +288,38 @@ class WFXWriter(filewriter.Writer):
         alpha = self._no_alpha_electrons()
         beta = self._no_beta_electrons()
         if len(self.ccdata.homos) == 1:
-            occup += [WFX_FIELD_FMT % (2)] * int(electrons / 2) + [
-                WFX_FIELD_FMT % (1)
-            ] * (electrons % 2)
+            occup += [WFX_FIELD_FMT % (2)] * int(electrons / 2) + [WFX_FIELD_FMT % (1)] * (
+                electrons % 2
+            )
         else:
             occup += [WFX_FIELD_FMT % (1)] * +alpha + [WFX_FIELD_FMT % (1)] * beta
         return occup
 
-    def _mo_energies(self):
+    def _mo_energies(self) -> list[str]:
         """Section: Molecular Orbital Energies."""
         mo_energies = []
         alpha_elctrons = self._no_alpha_electrons()
         beta_electrons = self._no_beta_electrons()
         for mo_energy in self.ccdata.moenergies[0][:alpha_elctrons]:
-            mo_energies.append(
-                WFX_FIELD_FMT % (utils.convertor(mo_energy, "eV", "hartree"))
-            )
+            mo_energies.append(WFX_FIELD_FMT % (utils.convertor(mo_energy, "eV", "hartree")))
         if self.ccdata.mult > 1:
             for mo_energy in self.ccdata.moenergies[1][:beta_electrons]:
-                mo_energies.append(
-                    WFX_FIELD_FMT % (utils.convertor(mo_energy, "eV", "hartree"))
-                )
+                mo_energies.append(WFX_FIELD_FMT % (utils.convertor(mo_energy, "eV", "hartree")))
         return mo_energies
 
-    def _mo_spin_types(self):
+    def _mo_spin_types(self) -> list[str]:
         """Section: Molecular Orbital Spin Types."""
         spin_types = []
         electrons = self._no_electrons()
         alpha = self._no_alpha_electrons()
         beta = self._no_beta_electrons()
         if len(self.ccdata.homos) == 1:
-            spin_types += ["Alpha and Beta"] * int(electrons / 2) + ["Alpha"] * (
-                electrons % 2
-            )
+            spin_types += ["Alpha and Beta"] * int(electrons / 2) + ["Alpha"] * (electrons % 2)
         else:
-            spin_types += ['Alpha'] * alpha +\
-                            ['Beta'] * beta
+            spin_types += ["Alpha"] * alpha + ["Beta"] * beta
         return spin_types
 
-    def _normalize(self, prim_type, alpha=1.0):
+    def _normalize(self, prim_type, alpha: float = 1.0) -> float:
         """Normalization factor for Cartesian Gaussian Functions.
 
         N**4 = (2/pi)**3 * 2**(l+m+n) * alpha**(3 + 2(l+m+n)) /
@@ -336,8 +331,8 @@ class WFXWriter(filewriter.Writer):
         """
         L = _L[prim_type]
         M = _M[prim_type]
-        norm_four = PI_CUBE_INV * 2**(4*L) * alpha**(3+2*L) / M
-        norm = numpy.power(norm_four, 1/4.0)
+        norm_four = PI_CUBE_INV * 2 ** (4 * L) * alpha ** (3 + 2 * L) / M
+        norm = numpy.power(norm_four, 1 / 4.0)
         return norm
 
     def _rearrange_mocoeffs(self, mocoeffs):
@@ -351,21 +346,19 @@ class WFXWriter(filewriter.Writer):
         aonames = self.ccdata.aonames
         mocoeffs = mocoeffs.tolist()
 
-        pos_yyx = [key for key, val in enumerate(aonames)
-                   if '_YYX' in val]
-        pos_yyz = [key for key, val in enumerate(aonames)
-                   if '_YYZ' in val]
+        pos_yyx = [key for key, val in enumerate(aonames) if "_YYX" in val]
+        pos_yyz = [key for key, val in enumerate(aonames) if "_YYZ" in val]
 
         if pos_yyx:
             for pos in pos_yyx:
-                mocoeffs.insert(pos-2, mocoeffs.pop(pos))
+                mocoeffs.insert(pos - 2, mocoeffs.pop(pos))
         if pos_yyz:
             for pos in pos_yyz:
-                mocoeffs.insert(pos+2, mocoeffs.pop(pos))
+                mocoeffs.insert(pos + 2, mocoeffs.pop(pos))
 
         return mocoeffs
 
-    def _norm_mat(self):
+    def _norm_mat(self) -> tuple[list[float], list[int], list[int]]:
         """Calculate normalization matrix for normalizing MOcoeffs."""
         alpha = []
         prim_coeff = []
@@ -383,21 +376,21 @@ class WFXWriter(filewriter.Writer):
                     prim_coeff += [prim[1] for prim in prims[1]]
 
         # GAMESS specific reordering.
-        if self.ccdata.metadata['package'] == 'GAMESS':
+        if self.ccdata.metadata["package"] == "GAMESS":
             prim_type = self._rearrange_modata(self._get_prim_types())
             alpha = self._rearrange_modata(alpha)
             prim_coeff = self._rearrange_modata(prim_coeff)
 
-        norm_mat = [self._normalize(prim_type[i], alpha[i]) * prim_coeff[i]
-                    for i in range(len(prim_coeff))]
+        norm_mat = [
+            self._normalize(prim_type[i], alpha[i]) * prim_coeff[i] for i in range(len(prim_coeff))
+        ]
 
         return (norm_mat, mo_count, prim_coeff)
 
-    def _nmos(self):
+    def _nmos(self) -> int:
         """Return number of molecular orbitals to be printed."""
 
-        return self.ccdata.nelectrons if self.ccdata.mult > 1\
-                else self._no_of_mos()
+        return self.ccdata.nelectrons if self.ccdata.mult > 1 else self._no_of_mos()
 
     def _prim_mocoeff(self, mo_count):
         """Return primitve mocoeffs array."""
@@ -406,7 +399,7 @@ class WFXWriter(filewriter.Writer):
         for i in range(len(self.ccdata.mocoeffs)):
             for j in range(self._nmos()):
                 mocoeffs = self.ccdata.mocoeffs[i][j]
-                if self.ccdata.metadata['package'] == 'GAMESS':
+                if self.ccdata.metadata["package"] == "GAMESS":
                     mocoeffs = self._rearrange_mocoeffs(self.ccdata.mocoeffs[i][j])
                 for k, mocoeff in enumerate(mocoeffs):
                     prim_mocoeff += [mocoeff] * mo_count[k]
@@ -422,9 +415,12 @@ class WFXWriter(filewriter.Writer):
 
         norm_mocoeffs = []
         for mo_num in range(self._nmos()):
-            norm_mocoeffs.append([norm_mat[i] *
-                                  prim_mocoeff[i + mo_num * len(prim_coeff)]
-                                  for i in range(len(prim_coeff))])
+            norm_mocoeffs.append(
+                [
+                    norm_mat[i] * prim_mocoeff[i + mo_num * len(prim_coeff)]
+                    for i in range(len(prim_coeff))
+                ]
+            )
 
         return norm_mocoeffs
 
@@ -435,12 +431,11 @@ class WFXWriter(filewriter.Writer):
         mocoeffs_section = []
 
         for mo_num, mocoeffs in enumerate(norm_mocoeffs):
-            mocoeffs_section.extend(_section('MO Number', mo_num + 1))
-            mocoeffs_section.extend(_list_format
-                                    (mocoeffs, 5))
+            mocoeffs_section.extend(_section("MO Number", mo_num + 1))
+            mocoeffs_section.extend(_list_format(mocoeffs, 5))
         return mocoeffs_section
 
-    def _energy(self):
+    def _energy(self) -> str:
         """Section: Energy = T + Vne + Vee + Vnn.
         The total energy of the molecule.
         HF and KSDFT: SCF energy        (scfenergies),
@@ -448,22 +443,22 @@ class WFXWriter(filewriter.Writer):
         CCSD        : CCSD total energy (ccenergies).
         """
         energy = 0
-        if hasattr(self.ccdata, 'ccenergies'):
+        if hasattr(self.ccdata, "ccenergies"):
             energy = self.ccdata.ccenergies[-1]
-        elif hasattr(self.ccdata, 'mpenergies'):
+        elif hasattr(self.ccdata, "mpenergies"):
             energy = self.ccdata.mpenergies[-1][-1]
-        elif hasattr(self.ccdata, 'scfenergies'):
+        elif hasattr(self.ccdata, "scfenergies"):
             energy = self.ccdata.scfenergies[-1]
         else:
             raise filewriter.MissingAttributeError("scfenergies/mpenergies/ccenergies")
         return WFX_FIELD_FMT % (utils.convertor(energy, "eV", "hartree"))
 
-    def _virial_ratio(self):
+    def _virial_ratio(self) -> str:
         """Ratio of kinetic energy to potential energy."""
         # Hardcoding expected value for Required Field.
         return WFX_FIELD_FMT % (2.0)
 
-    def generate_repr(self):
+    def generate_repr(self) -> str:
         """Generate the wfx representation of the logfile data."""
 
         # sections:(Function returning data for section,
@@ -490,12 +485,10 @@ class WFXWriter(filewriter.Writer):
             (self._prim_centers, "Primitive Centers", True),
             (self._prim_types, "Primitive Types", True),
             (self._prim_exps, "Primitive Exponents", True),
-            (self._mo_occup_nos,
-             "Molecular Orbital Occupation Numbers", True),
+            (self._mo_occup_nos, "Molecular Orbital Occupation Numbers", True),
             (self._mo_energies, "Molecular Orbital Energies", True),
             (self._mo_spin_types, "Molecular Orbital Spin Types", True),
-            (self._mo_prim_coeffs,
-             "Molecular Orbital Primitive Coefficients", True),
+            (self._mo_prim_coeffs, "Molecular Orbital Primitive Coefficients", True),
             (self._energy, "Energy = T + Vne + Vee + Vnn", True),
             # (self._nuc_energy_gradients,
             #  "Nuclear Cartesian Energy Gradients", False),
@@ -511,11 +504,11 @@ class WFXWriter(filewriter.Writer):
             try:
                 section_data = section_module()
                 wfx_lines.extend(_section(section_name, section_data))
-            except:
+            except:  # noqa: E722
                 if section_required:
                     raise filewriter.MissingAttributeError(
                         f"Unable to write required wfx section: {section_name}"
                     )
 
-        wfx_lines.append('')
-        return '\n'.join(wfx_lines)
+        wfx_lines.append("")
+        return "\n".join(wfx_lines)

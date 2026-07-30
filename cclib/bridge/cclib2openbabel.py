@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2017, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -10,22 +8,25 @@
 from cclib.parser.data import ccData
 from cclib.parser.utils import find_package
 
+import numpy as np
+
+
 _found_openbabel = find_package("openbabel")
 if _found_openbabel:
     # The exception idiom is needed because OB < 3.0 doesn't set __version__.
     # The `try` block is for OB >= 3.0, and `except` is for 2.4.x and older.
     try:
         from openbabel import openbabel as ob
-    except:
+    except:  # noqa: E722
         import openbabel as ob
 
 
-def _check_openbabel(found_openbabel):
+def _check_openbabel(found_openbabel: bool) -> None:
     if not found_openbabel:
         raise ImportError("You must install `openbabel` to use this function")
 
 
-def makecclib(mol):
+def makecclib(mol: "ob.OBMol") -> ccData:
     """Create cclib attributes and return a ccData from an OpenBabel molecule.
 
     Beyond the numbers, masses and coordinates, we could also set the total charge
@@ -33,33 +34,45 @@ def makecclib(mol):
     so it is better to assume that would not be correct.
     """
     _check_openbabel(_found_openbabel)
-    attributes = {
-        'atomcoords':   [],
-        'atommasses':   [],
-        'atomnos':      [],
-        'natom':        mol.NumAtoms(),
-    }
+    attributes = {"atomcoords": [], "atommasses": [], "atomnos": [], "natom": mol.NumAtoms()}
     for atom in ob.OBMolAtomIter(mol):
-        attributes['atomcoords'].append([atom.GetX(), atom.GetY(), atom.GetZ()])
-        attributes['atommasses'].append(atom.GetAtomicMass())
-        attributes['atomnos'].append(atom.GetAtomicNum())
-    attributes['atomcoords'] = [attributes['atomcoords']]
+        attributes["atomcoords"].append([atom.GetX(), atom.GetY(), atom.GetZ()])
+        attributes["atommasses"].append(atom.GetAtomicMass())
+        attributes["atomnos"].append(atom.GetAtomicNum())
+    attributes["atomcoords"] = [attributes["atomcoords"]]
     return ccData(attributes)
 
 
-def makeopenbabel(atomcoords, atomnos, charge=0, mult=1):
+def makeopenbabel(
+    *,
+    atomcoords: np.ndarray | None = None,
+    atomnos: np.ndarray | None = None,
+    charge: int = 0,
+    mult: int = 1,
+) -> "ob.OBMol":
     """Create an Open Babel molecule."""
     _check_openbabel(_found_openbabel)
+    if atomcoords is None and atomnos is None:
+        raise RuntimeError("Must pass at least one of atomcoords or atomnos")
+    elif atomcoords is not None and atomnos is not None:
+        assert atomcoords.shape[1] == atomnos.shape[0]
+        natom = atomnos.shape[0]
+    elif atomcoords is None:
+        natom = atomnos.shape[0]
+    else:
+        natom = atomcoords.shape[1]
     obmol = ob.OBMol()
-    for i in range(len(atomnos)):
-        # Note that list(atomcoords[i]) is not equivalent!!!
-        # For now, only take the last geometry.
-        # TODO: option to export last geometry or all geometries?
-        coords = atomcoords[-1][i].tolist()
-        atomno = int(atomnos[i])
+    for i in range(natom):
         obatom = ob.OBAtom()
-        obatom.SetAtomicNum(atomno)
-        obatom.SetVector(*coords)
+        if atomcoords is not None:
+            # Note that list(atomcoords[i]) is not equivalent!!!
+            # For now, only take the last geometry.
+            # TODO: option to export last geometry or all geometries?
+            coords = atomcoords[-1][i].tolist()
+            obatom.SetVector(*coords)
+        if atomnos is not None:
+            atomno = int(atomnos[i])
+            obatom.SetAtomicNum(atomno)
         obmol.AddAtom(obatom)
     obmol.ConnectTheDots()
     obmol.PerceiveBondOrders()
@@ -68,17 +81,17 @@ def makeopenbabel(atomcoords, atomnos, charge=0, mult=1):
     return obmol
 
 
-def readfile(fname, format):
+def readfile(fname: str, fmt: str) -> ccData:
     """Read a file with OpenBabel and extract cclib attributes."""
     _check_openbabel(_found_openbabel)
     obc = ob.OBConversion()
-    if obc.SetInFormat(format):
+    if obc.SetInFormat(fmt):
         mol = ob.OBMol()
         obc.ReadFile(mol, fname)
         return makecclib(mol)
     else:
-        print(f"Unable to load the {format} reader from OpenBabel.")
-        return {}
+        print(f"Unable to load the {fmt} reader from OpenBabel.")
+        return {}  # type: ignore
 
 
 del find_package

@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (c) 2020, the cclib development team
+# Copyright (c) 2025-2026, the cclib development team
 #
 # This file is part of cclib (http://cclib.github.io) and is distributed under
 # the terms of the BSD 3-Clause License.
@@ -8,27 +6,28 @@
 """Calculation of Bickelhaupt population analysis based on data parsed by cclib."""
 
 import random
-
-import numpy
+from typing import Optional
 
 from cclib.method.population import Population
+
+import numpy
 
 
 class Bickelhaupt(Population):
     """Bickelhaupt population analysis."""
 
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(logname="Bickelhaupt Population Analysis", *args)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of the object."""
         return f"Bickelhaupt charges of {self.data}"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a representation of the object."""
         return f"Bickelhaupt({self.data})"
 
-    def calculate(self, indices=None, fupdate=0.05):
+    def calculate(self, indices: Optional = None, fupdate: float = 0.05) -> bool:
         """Perform a Bickelhaupt population analysis."""
         # Bickelhaupt population analysis uses the relative magnitude of the diagonal terms to
         # partition off-diagonal terms. The weights are therefore calculated using the following
@@ -117,9 +116,7 @@ class Bickelhaupt(Population):
             beta = numpy.zeros([size], "d")
 
         for spin in range(len(self.fragresults)):
-
             for i in range(self.data.homos[spin] + 1):
-
                 temp = numpy.reshape(self.fragresults[spin][i], (size,))
                 self.fragcharges = self.fragcharges + temp
                 if spin == 0:
