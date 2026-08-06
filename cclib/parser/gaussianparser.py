@@ -1364,6 +1364,15 @@ class Gaussian(logfileparser.Logfile):
                 if line.split()[4] == "Scan":
                     self.scannames_scanned.append(name)
                     self.append_attribute("scannames", definition)
+                # Parse constraints for optimization
+                if line.split()[4] == "Frozen":
+                    # Save atom index for frozen coordinate
+                    if 'X' in name:
+                        self.append_attribute("frozen", name.replace("X",""))
+                    # Save definition (i.e., A(1,2,3)) if bond, angle, or dihedral
+                    elif 'R' in name or 'A' in name or 'D' in name:
+                        self.append_attribute("frozen", definition)
+
                 line = next(inputfile)
 
         # Extract unrelaxed PES scan data, which looks something like:

@@ -49,6 +49,7 @@ class ccData:
         fooverlaps -- fragment orbital overlap matrix (array[2])
         fragnames -- names of fragments (list of strings)
         frags -- indices of atoms in a fragment (list of lists)
+        frozen -- list of constraints present in optimization (lists) ## My addition ##
         gbasis -- coefficients and exponents of Gaussian basis functions (PyQuante format)
         geotargets -- targets for convergence of geometry optimization (array[1])
         geovalues -- current values for convergence of geometry optimization (array[1])
@@ -137,6 +138,7 @@ class ccData:
         "fooverlaps": Attribute(numpy.ndarray, "orbital overlap", "fragments"),
         "fragnames": Attribute(list, "fragment names", "fragments"),
         "frags": Attribute(list, "atom indices", "fragments"),
+        "frozen": Attribute(list, "constraints", "optimization"), ## My addition ##
         "gbasis": Attribute(list, "basis functions", "atoms:orbitals"),
         "geotargets": Attribute(numpy.ndarray, "geometric targets", "optimization"),
         "geovalues": Attribute(numpy.ndarray, "geometric values", "optimization"),
