@@ -665,6 +665,40 @@ Dispersion correction           -0.016199959
                 self.geotargets_names.append(name)
                 self.geotargets.append(target)
 
+        # My addition to add geom constraint parsing
+        # ------------------------------------------------------------------------------
+        #                         ORCA OPTIMIZATION COORDINATE SETUP
+        # ------------------------------------------------------------------------------
+
+        # The optimization will be done in redundant internal coordinates (2022)
+        # Making redundant internal coordinates   ...  (2022 redundants) done
+        # Evaluating the initial hessian          ...  (Almloef) done
+        # Evaluating the coordinates              ...  done
+        # Calculating the B-matrix                .... done
+        # Calculating the G-matrix                .... done
+        # Will constrain atom 0 coordinate 1 
+        # Will constrain atom 0 coordinate 2 
+        # Will constrain atom 0 coordinate 3 
+        if line[24:58] == "ORCA OPTIMIZATION COORDINATE SETUP":
+                    line = next(inputfile)
+                    # Go through lines until being told what is being constraint
+                    while "Will constrain" not in line:
+                        line = next(inputfile)
+                    # Found contraints so store them
+                    while "Will constrain" in line:
+                        # Save 0 indexed atom number that is being frozen (x,y,z)
+                        if "coordinate 1" in line:
+                            frozen_atom = line.split()[3]
+                            self.append_attribute("frozen",frozen_atom)
+                        # TO-DO: Figure out how to parse distance,angles, and dihedrals
+                        elif "coordinate 2" in line or "coordinate 3" in line:
+                            pass
+                        else:
+                            self.append_attribute("frozen",line.strip().replace("Will constrain ",""))
+                        line = next(inputfile)
+
+
+
         # The convergence targets for relaxed surface scan steps are printed at the
         # beginning of the output, although the order and their description is
         # different than later on. So, try to standardize the names of the criteria
