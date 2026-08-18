@@ -92,7 +92,7 @@ class XYZ(filewriter.Writer):
         existing_comment = (
             ""
             if "comments" not in self.ccdata.metadata
-            else self.ccdata.metadata["comments"][index]
+            else self.ccdata.metadata["comments"]#[index]
         )
 
         geometry_num = index + 1
