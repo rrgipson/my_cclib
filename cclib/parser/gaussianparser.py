@@ -1365,7 +1365,7 @@ class Gaussian(logfileparser.Logfile):
                     self.scannames_scanned.append(name)
                     self.append_attribute("scannames", definition)
                 # Parse constraints for optimization
-                if line.split()[4] == "Frozen":
+                if 'rozen' in line.split()[4]:
                     # Save atom index for frozen coordinate
                     if 'X' in name:
                         self.append_attribute("frozen", name.replace("X",""))
