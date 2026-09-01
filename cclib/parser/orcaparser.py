@@ -690,12 +690,32 @@ Dispersion correction           -0.016199959
                         if "coordinate 1" in line:
                             frozen_atom = line.split()[3]
                             self.append_attribute("frozen",frozen_atom)
-                        # TO-DO: Figure out how to parse distance,angles, and dihedrals
+                        # TO-DO: Figure out how to parse distance,angles, and dihedrals (see below)
                         elif "coordinate 2" in line or "coordinate 3" in line:
                             pass
                         else:
                             self.append_attribute("frozen",line.strip().replace("Will constrain ",""))
                         line = next(inputfile)
+        # For parsing other types of frozen coordinates:
+        # -----------------------------------------------------------------
+        #         Redundant Internal Coordinates
+        #
+        #
+        # -----------------------------------------------------------------
+        #     Definition                    Initial Value    Approx d2E/dq
+        # -----------------------------------------------------------------
+        # 1. B(H   1,C   0)                  1.1288         0.312259   
+        # 2. B(O   2,C   0)                  1.2498         0.936601   
+        # 3. B(O   3,C   0)                  1.2851         0.822619 C   
+        if line[20:50] == "Redundant Internal Coordinates":
+            self.skip_lines(inputfile, ["b", "b", "d"])
+            line = next(inputfile)
+            self.skip_lines(inputfile, ["d"])
+            while '-----' not in line:
+                if line.split()[-1] == "C" and not line.split()[1].startswith("C"):
+                    constraint = line.split()[1]
+                    self.append_attribute("frozen",constraint)  
+                line = next(inputfile)                     
 
 
 
