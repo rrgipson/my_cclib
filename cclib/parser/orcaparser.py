@@ -717,7 +717,7 @@ Dispersion correction           -0.016199959
                     constraint_line = line.split()
                     constraint = line.split()[1]
                     cl_index = 2
-                    while ")" not in constraint:
+                    while ")" not in constraint and cl_index < len(constraint_line):
                         constraint += line.split()[cl_index]
                         cl_index += 1
                     self.append_attribute("frozen",constraint)  
