@@ -712,8 +712,14 @@ Dispersion correction           -0.016199959
             line = next(inputfile)
             self.skip_lines(inputfile, ["d"])
             while '-----' not in line:
+                # line contains constraint and is not a coordinate (already parsed in above block)
                 if line.split()[-1] == "C" and not line.split()[1].startswith("C"):
+                    constraint_line = line.split()
                     constraint = line.split()[1]
+                    cl_index = 2
+                    while ")" not in constraint:
+                        constraint += line.split()[cl_index]
+                        cl_index += 1
                     self.append_attribute("frozen",constraint)  
                 line = next(inputfile)                     
 
